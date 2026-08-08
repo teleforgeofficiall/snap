@@ -1,18 +1,18 @@
 import http from "http";
-import { Env, loadAdminIds } from "./config";
-import { getSupabase } from "./supabase";
-import { sendMessage, copyMessage, deleteMessage, answerCallbackQuery } from "./telegram";
-import { launchMessageText, launchMessageKeyboard } from "./keyboards";
-import { handleStart, handleVerifyContinue } from "./handlers/start";
-import { handleMainMenu } from "./handlers/menu";
-import { handleWallet, handleDailyClaim } from "./handlers/wallet";
-import { handleRefer } from "./handlers/refer";
-import { handleLeaderboard } from "./handlers/leaderboard";
-import { handleAbout } from "./handlers/about";
+import { Env, loadAdminIds } from "./src/config";
+import { getSupabase } from "./src/supabase";
+import { sendMessage, copyMessage, deleteMessage, answerCallbackQuery, getUpdates } from "./src/telegram";
+import { launchMessageText, launchMessageKeyboard } from "./src/keyboards";
+import { handleStart, handleVerifyContinue } from "./src/handlers/start";
+import { handleMainMenu } from "./src/handlers/menu";
+import { handleWallet, handleDailyClaim } from "./src/handlers/wallet";
+import { handleRefer } from "./src/handlers/refer";
+import { handleLeaderboard } from "./src/handlers/leaderboard";
+import { handleAbout } from "./src/handlers/about";
 import {
   handleWithdraw,
   handleClaimComingSoon,
-} from "./handlers/withdraw";
+} from "./src/handlers/withdraw";
 import {
   isAdmin,
   handleAdmin,
@@ -35,8 +35,8 @@ import {
   handleAdminBroadcastSend,
   handleAdminInput,
   BROADCAST_PENDING,
-} from "./handlers/admin";
-import { getSetting } from "./utils";
+} from "./src/handlers/admin";
+import { getSetting } from "./src/utils";
 
 const USER_MENU_BUTTONS = ["💵 Wallet", "👥 Refer", "🏆 Leaderboard", "ℹ️ About", "💸 Withdraw", "⬅️ Back to Menu"];
 const ADMIN_MENU_BUTTONS = ["📊 Stats", "📢 Add Channel", "🗑️ Remove Channel", "📋 List Channels", "📝 Claim Msg", "📢 Broadcast", "🔍 User Info", "💰 Ref Points", "🎁 Daily Bonus", "🔗 Mini App URL", "🗑️ Remove Mini App URL", "🗑️ Reset Data"];
@@ -49,39 +49,62 @@ const env: Env = {
 };
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
+const MODE = process.env.MODE || "polling";
 
-const server = http.createServer(async (req, res) => {
-  if (req.method === "POST" && req.url === "/webhook") {
-    let body = "";
-    for await (const chunk of req) {
-      body += chunk;
+if (MODE === "webhook") {
+  const server = http.createServer(async (req, res) => {
+    if (req.method === "POST" && req.url === "/webhook") {
+      let body = "";
+      for await (const chunk of req) {
+        body += chunk;
+      }
+      try {
+        const update = JSON.parse(body);
+        await handleUpdate(update, env);
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        res.end("OK");
+      } catch (err) {
+        console.error("Webhook error:", err);
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Error");
+      }
+      return;
     }
-    try {
-      const update = JSON.parse(body);
-      await handleUpdate(update, env);
+    if (req.method === "GET" && req.url === "/") {
       res.writeHead(200, { "Content-Type": "text/plain" });
-      res.end("OK");
-    } catch (err) {
-      console.error("Webhook error:", err);
-      res.writeHead(500, { "Content-Type": "text/plain" });
-      res.end("Error");
+      res.end("Snapbucks Telegram Bot is running!");
+      return;
     }
-    return;
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found");
+  });
+
+  server.listen(PORT, () => {
+    console.log(`🤖 Snapbucks Bot running on port ${PORT} (webhook mode)`);
+  });
+} else {
+  startPolling();
+}
+
+async function startPolling() {
+  console.log("🤖 Snapbucks Bot starting in polling mode...");
+  let offset = 0;
+
+  while (true) {
+    try {
+      const updates = await getUpdates(env.BOT_TOKEN, offset);
+      if (updates.ok && updates.result.length > 0) {
+        for (const update of updates.result) {
+          offset = update.update_id + 1;
+          await handleUpdate(update, env);
+        }
+      }
+    } catch (err) {
+      console.error("Polling error:", err);
+      await new Promise((r) => setTimeout(r, 3000));
+    }
   }
-
-  if (req.method === "GET" && req.url === "/") {
-    res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("Snapbucks Telegram Bot is running!");
-    return;
-  }
-
-  res.writeHead(404, { "Content-Type": "text/plain" });
-  res.end("Not Found");
-});
-
-server.listen(PORT, () => {
-  console.log(`🤖 Snapbucks Bot running on port ${PORT}`);
-});
+}
 
 async function handleUpdate(update: any, env: Env) {
   const supabase = getSupabase(env.SUPABASE_URL, env.SUPABASE_KEY);
@@ -180,8 +203,8 @@ async function handleMessage(
   }
 
   if (adminIds.includes(String(userId))) {
-    const { broadcastConfirmKeyboard } = await import("./keyboards");
-    const { BROADCAST_PENDING: BP } = await import("./handlers/admin");
+    const { broadcastConfirmKeyboard } = await import("./src/keyboards");
+    const { BROADCAST_PENDING: BP } = await import("./src/handlers/admin");
 
     BP[userId] = {
       chatId: chatId,
