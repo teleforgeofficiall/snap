@@ -1,0 +1,7 @@
+name = "snapbucks-telegram-bot"
+main = "src/index.ts"
+compatibility_date = "2024-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ADMIN_IDS = "8311215983,7371674958"
