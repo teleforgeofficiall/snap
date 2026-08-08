@@ -1,3 +1,4 @@
+import "dotenv/config";
 import http from "http";
 import { Env, loadAdminIds } from "./src/config";
 import { getSupabase } from "./src/supabase";
