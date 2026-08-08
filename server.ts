@@ -1,5 +1,7 @@
 import "dotenv/config";
 import http from "http";
+import WebSocket from "ws";
+(globalThis as any).WebSocket = WebSocket;
 import { Env, loadAdminIds } from "./src/config";
 import { getSupabase } from "./src/supabase";
 import { sendMessage, copyMessage, deleteMessage, answerCallbackQuery, getUpdates } from "./src/telegram";
