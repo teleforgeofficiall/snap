@@ -2,9 +2,8 @@ module.exports = {
   apps: [
     {
       name: "snapbucks-bot",
-      script: "npx",
-      args: "tsx server.ts",
-      interpreter: "none",
+      script: "./node_modules/.bin/tsx",
+      args: "server.ts",
       instances: 1,
       autorestart: true,
       watch: false,
