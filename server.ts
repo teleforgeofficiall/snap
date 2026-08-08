@@ -88,21 +88,28 @@ if (MODE === "webhook") {
 
 async function startPolling() {
   console.log("🤖 Snapbucks Bot starting in polling mode...");
+  console.log("Token:", env.BOT_TOKEN ? "SET" : "MISSING");
+  console.log("Supabase URL:", env.SUPABASE_URL ? "SET" : "MISSING");
   let offset = 0;
 
   while (true) {
     try {
       const updates = await getUpdates(env.BOT_TOKEN, offset);
       if (updates.ok && updates.result.length > 0) {
+        console.log(`📩 Received ${updates.result.length} update(s)`);
         for (const update of updates.result) {
           offset = update.update_id + 1;
-          await handleUpdate(update, env);
+          try {
+            await handleUpdate(update, env);
+          } catch (updateErr) {
+            console.error("❌ Error handling update:", updateErr);
+          }
         }
       }
     } catch (err) {
-      console.error("Polling error:", err);
-      await new Promise((r) => setTimeout(r, 3000));
+      console.error("❌ Polling error:", err);
     }
+    await new Promise((r) => setTimeout(r, 1000));
   }
 }
 
