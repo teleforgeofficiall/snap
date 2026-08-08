@@ -4,18 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "tsx server.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "pg": "^8.22.0"
+    "pg": "^8.22.0",
+    "tsx": "^4.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241004.0",
     "@types/node": "^20.0.0",
-    "tsx": "^4.0.0",
     "typescript": "^5.6.0",
     "wrangler": "^3.80.0"
   }

@@ -193,8 +193,8 @@ async function handleMessage(
     if (text === "💰 Ref Points") { await handleAdminRefPoints(env.BOT_TOKEN, supabase, chatId, userId, "admin_ref_pts"); return; }
     if (text === "🎁 Daily Bonus") { await handleAdminDailyBonus(env.BOT_TOKEN, supabase, chatId, userId, "admin_daily"); return; }
     if (text === "🔗 Mini App URL") { await handleAdminMiniApp(env.BOT_TOKEN, supabase, chatId, userId, "admin_miniapp"); return; }
-    if (text === "🗑️ Remove Mini App URL") { await handleAdminRemoveMiniApp(env.BOT_TOKEN, supabase, chatId, userId, "admin_rm_miniapp"); return; }
-    if (text === "🗑️ Reset Data") { await handleAdminResetData(env.BOT_TOKEN, supabase, chatId, userId, "admin_reset"); return; }
+    if (text === "🗑️ Remove Mini App URL") { await handleAdminRemoveMiniApp(env.BOT_TOKEN, supabase, chatId, "admin_rm_miniapp"); return; }
+    if (text === "🗑️ Reset Data") { await handleAdminResetData(env.BOT_TOKEN, supabase, chatId, "admin_reset"); return; }
   }
 
   if (adminIds.includes(String(userId)) && text && !text.startsWith("/")) {
