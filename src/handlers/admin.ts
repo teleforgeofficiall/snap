@@ -71,7 +71,7 @@ export async function handleAdminStats(
   const { count: eligible } = await supabase
     .from("users")
     .select("*", { count: "exact", head: true })
-    .eq("eligible", true);
+    .gte("referral_count", 5);
 
   await sendMessage(token, {
     chat_id: chatId,
