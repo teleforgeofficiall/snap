@@ -142,6 +142,13 @@ export function adminPanelKeyboard() {
         { text: "🗑️ Remove Mini App URL" },
         { text: "🗑️ Reset Data" },
       ],
+      [
+        { text: "🎯 Create Campaign" },
+        { text: "📋 List Campaigns" },
+      ],
+      [
+        { text: "➕ Add Task" },
+      ],
       [{ text: "⬅️ Back to Menu" }],
     ],
     resize_keyboard: true,

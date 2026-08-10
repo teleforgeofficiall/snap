@@ -13,7 +13,7 @@ import {
 } from "../keyboards";
 import { getSetting, setSetting } from "../utils";
 
-const ADMIN_STATE: Record<number, { action: string }> = {};
+const ADMIN_STATE: Record<number, { action: string; extra?: any }> = {};
 
 export interface BroadcastPending {
   chatId: number;
@@ -532,6 +532,79 @@ export async function handleAdminBroadcastSend(
   });
 }
 
+// ============ CAMPAIGN MANAGEMENT ============
+
+export async function handleAdminCreateCampaign(
+  token: string,
+  supabase: SupabaseClient,
+  chatId: number,
+  userId: number,
+  callbackQueryId?: string
+) {
+  if (callbackQueryId) await answerCallbackQuery(token, { callback_query_id: callbackQueryId });
+  ADMIN_STATE[userId] = { action: "create_campaign_title" };
+  await sendMessage(token, {
+    chat_id: chatId,
+    text: "📢 <b>Create Campaign</b>\n\nSend the campaign title:",
+    reply_markup: backToAdminInline(),
+  });
+}
+
+export async function handleAdminListCampaigns(
+  token: string,
+  supabase: SupabaseClient,
+  chatId: number,
+  callbackQueryId?: string
+) {
+  if (callbackQueryId) await answerCallbackQuery(token, { callback_query_id: callbackQueryId });
+
+  const { data: campaigns } = await supabase
+    .from("campaigns")
+    .select("id, title, project_name, status, rewards_per_user, start_date, end_date")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (!campaigns || campaigns.length === 0) {
+    await sendMessage(token, {
+      chat_id: chatId,
+      text: "📋 No campaigns yet.",
+      reply_markup: backToAdminInline(),
+    });
+    return;
+  }
+
+  let text = "📋 <b>Active Campaigns</b>\n\n";
+  for (const c of campaigns) {
+    const status = c.status === "active" ? "🟢" : c.status === "paused" ? "⏸️" : "🔴";
+    text += `${status} <b>${c.title}</b>\n`;
+    text += `   Project: ${c.project_name}\n`;
+    text += `   Reward: ${c.rewards_per_user} GRAM/user\n`;
+    text += `   ID: <code>${c.id.slice(0, 8)}</code>\n\n`;
+  }
+
+  await sendMessage(token, {
+    chat_id: chatId,
+    text,
+    reply_markup: backToAdminInline(),
+  });
+}
+
+export async function handleAdminAddTask(
+  token: string,
+  supabase: SupabaseClient,
+  chatId: number,
+  userId: number,
+  callbackQueryId?: string
+) {
+  if (callbackQueryId) await answerCallbackQuery(token, { callback_query_id: callbackQueryId });
+  ADMIN_STATE[userId] = { action: "add_task_campaign_id" };
+  await sendMessage(token, {
+    chat_id: chatId,
+    text: "➕ <b>Add Task to Campaign</b>\n\nSend the campaign ID (first 8 chars):",
+    reply_markup: backToAdminInline(),
+  });
+}
+
 // Handle admin text inputs
 export async function handleAdminInput(
   token: string,
@@ -698,6 +771,189 @@ export async function handleAdminInput(
         text: `✅ <b>Mini App URL Updated!</b>\n\n🔗 <code>${url}</code>\n\n👥 Total Users: <b>${count || 0}</b>\n\nKya aap ye message broadcast karna chahte hain sabhi users ko?`,
         reply_markup: confirmBroadcastKeyboard(),
       });
+      return true;
+    }
+
+    // ============ CAMPAIGN CREATION FLOW ============
+    case "create_campaign_title": {
+      ADMIN_STATE[userId] = { action: "create_campaign_project", extra: { title: text.trim() } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: "📝 Send the project name (e.g., Hamster Kombat):",
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "create_campaign_project": {
+      const prev = (state as any).extra || {};
+      ADMIN_STATE[userId] = { action: "create_campaign_desc", extra: { ...prev, project: text.trim() } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: "📝 Send the campaign description:",
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "create_campaign_desc": {
+      const prev = (state as any).extra || {};
+      ADMIN_STATE[userId] = { action: "create_campaign_reward", extra: { ...prev, description: text.trim() } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: "💰 Send reward per user (in GRAM):",
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "create_campaign_reward": {
+      const prev = (state as any).extra || {};
+      const reward = parseInt(text.trim());
+      if (isNaN(reward) || reward <= 0) {
+        await sendMessage(token, { chat_id: chatId, text: "❌ Invalid number." });
+        ADMIN_STATE[userId] = { action: "create_campaign_reward", extra: prev };
+        return true;
+      }
+      ADMIN_STATE[userId] = { action: "create_campaign_duration", extra: { ...prev, reward } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: "📅 Send duration in days (e.g., 30):",
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "create_campaign_duration": {
+      const prev = (state as any).extra || {};
+      const duration = parseInt(text.trim());
+      if (isNaN(duration) || duration <= 0) {
+        await sendMessage(token, { chat_id: chatId, text: "❌ Invalid number." });
+        ADMIN_STATE[userId] = { action: "create_campaign_duration", extra: prev };
+        return true;
+      }
+
+      const { title, project, description, reward } = prev;
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + duration);
+
+      const { data: campaign, error } = await supabase
+        .from("campaigns")
+        .insert({
+          title,
+          project_name: project,
+          description,
+          reward_token: "GRAM",
+          rewards_per_user: reward,
+          total_budget: reward * 1000,
+          start_date: startDate.toISOString(),
+          end_date: endDate.toISOString(),
+          status: "active",
+        })
+        .select()
+        .single();
+
+      delete ADMIN_STATE[userId];
+
+      if (error) {
+        await sendMessage(token, { chat_id: chatId, text: `❌ Error: ${error.message}` });
+      } else {
+        await sendMessage(token, {
+          chat_id: chatId,
+          text: `✅ <b>Campaign Created!</b>\n\n📌 ${title}\n🏢 ${project}\n💰 ${reward} GRAM/user\n📅 ${duration} days\n🆔 <code>${campaign.id.slice(0, 8)}</code>\n\nNow add tasks using "➕ Add Task" button.`,
+          reply_markup: backToAdminInline(),
+        });
+      }
+      return true;
+    }
+
+    case "add_task_campaign_id": {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("id, title")
+        .like("id", text.trim() + "%")
+        .single();
+
+      if (!campaign) {
+        await sendMessage(token, { chat_id: chatId, text: "❌ Campaign not found." });
+        return true;
+      }
+
+      ADMIN_STATE[userId] = { action: "add_task_title", extra: { campaignId: campaign.id } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: `📋 Adding task to: <b>${campaign.title}</b>\n\nSend the task title:`,
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "add_task_title": {
+      const prev = (state as any).extra || {};
+      ADMIN_STATE[userId] = { action: "add_task_type", extra: { ...prev, title: text.trim() } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: "📝 Send task type:\n• <code>join_channel</code>\n• <code>follow_x</code>\n• <code>refer_friends</code>\n• <code>visit_link</code>\n• <code>custom</code>",
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "add_task_type": {
+      const validTypes = ["join_channel", "follow_x", "refer_friends", "visit_link", "custom"];
+      if (!validTypes.includes(text.trim())) {
+        await sendMessage(token, { chat_id: chatId, text: "❌ Invalid type. Use: join_channel, follow_x, refer_friends, visit_link, or custom" });
+        return true;
+      }
+      const prev = (state as any).extra || {};
+      ADMIN_STATE[userId] = { action: "add_task_url", extra: { ...prev, type: text.trim() } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: "🔗 Send task URL (or channel username):",
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "add_task_url": {
+      const prev = (state as any).extra || {};
+      ADMIN_STATE[userId] = { action: "add_task_reward", extra: { ...prev, url: text.trim() } };
+      await sendMessage(token, {
+        chat_id: chatId,
+        text: "💰 Send task reward (GRAM):",
+        reply_markup: backToAdminInline(),
+      });
+      return true;
+    }
+
+    case "add_task_reward": {
+      const prev = (state as any).extra || {};
+      const reward = parseInt(text.trim());
+      if (isNaN(reward) || reward <= 0) {
+        await sendMessage(token, { chat_id: chatId, text: "❌ Invalid number." });
+        return true;
+      }
+
+      const { error } = await supabase.from("campaign_tasks").insert({
+        campaign_id: prev.campaignId,
+        title: prev.title,
+        task_type: prev.type,
+        task_url: prev.url,
+        reward_amount: reward,
+      });
+
+      delete ADMIN_STATE[userId];
+
+      if (error) {
+        await sendMessage(token, { chat_id: chatId, text: `❌ Error: ${error.message}` });
+      } else {
+        await sendMessage(token, {
+          chat_id: chatId,
+          text: `✅ Task added!\n\n📌 ${prev.title}\n📝 ${prev.type}\n🔗 ${prev.url}\n💰 ${reward} GRAM`,
+          reply_markup: backToAdminInline(),
+        });
+      }
       return true;
     }
 

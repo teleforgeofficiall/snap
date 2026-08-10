@@ -37,12 +37,16 @@ import {
   handleAdminBroadcastYes,
   handleAdminBroadcastSend,
   handleAdminInput,
+  handleAdminCreateCampaign,
+  handleAdminListCampaigns,
+  handleAdminAddTask,
   BROADCAST_PENDING,
 } from "./src/handlers/admin";
 import { getSetting } from "./src/utils";
+import { handleApi } from "./src/api";
 
 const USER_MENU_BUTTONS = ["💵 Wallet", "👥 Refer", "🏆 Leaderboard", "ℹ️ About", "💸 Withdraw", "⬅️ Back to Menu"];
-const ADMIN_MENU_BUTTONS = ["📊 Stats", "📢 Add Channel", "🗑️ Remove Channel", "📋 List Channels", "📝 Claim Msg", "📢 Broadcast", "🔍 User Info", "💰 Ref Points", "🎁 Daily Bonus", "🔗 Mini App URL", "🗑️ Remove Mini App URL", "🗑️ Reset Data"];
+const ADMIN_MENU_BUTTONS = ["📊 Stats", "📢 Add Channel", "🗑️ Remove Channel", "📋 List Channels", "📝 Claim Msg", "📢 Broadcast", "🔍 User Info", "💰 Ref Points", "🎁 Daily Bonus", "🔗 Mini App URL", "🗑️ Remove Mini App URL", "🗑️ Reset Data", "🎯 Create Campaign", "📋 List Campaigns", "➕ Add Task"];
 
 const env: Env = {
   BOT_TOKEN: process.env.BOT_TOKEN || "",
@@ -55,7 +59,15 @@ const PORT = parseInt(process.env.PORT || "3000", 10);
 const MODE = process.env.MODE || "polling";
 
 if (MODE === "webhook") {
+  const supabase = getSupabase(env.SUPABASE_URL, env.SUPABASE_KEY);
+  
   const server = http.createServer(async (req, res) => {
+    // API routes
+    if (req.url?.startsWith("/api/")) {
+      await handleApi(req, res, supabase, env.BOT_TOKEN);
+      return;
+    }
+
     if (req.method === "POST" && req.url === "/webhook") {
       let body = "";
       for await (const chunk of req) {
@@ -84,6 +96,7 @@ if (MODE === "webhook") {
 
   server.listen(PORT, () => {
     console.log(`🤖 Snapbucks Bot running on port ${PORT} (webhook mode)`);
+    console.log(`📡 API available at http://localhost:${PORT}/api/`);
   });
 } else {
   startPolling();
@@ -93,6 +106,28 @@ async function startPolling() {
   console.log("🤖 Snapbucks Bot starting in polling mode...");
   console.log("Token:", env.BOT_TOKEN ? "SET" : "MISSING");
   console.log("Supabase URL:", env.SUPABASE_URL ? "SET" : "MISSING");
+
+  const supabase = getSupabase(env.SUPABASE_URL, env.SUPABASE_KEY);
+
+  // Start HTTP server for API routes in polling mode too
+  const apiServer = http.createServer(async (req, res) => {
+    if (req.url?.startsWith("/api/")) {
+      await handleApi(req, res, supabase, env.BOT_TOKEN);
+      return;
+    }
+    if (req.method === "GET" && req.url === "/") {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("Snapbucks Telegram Bot is running! (polling mode)");
+      return;
+    }
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found");
+  });
+
+  apiServer.listen(PORT, () => {
+    console.log(`📡 API available at http://localhost:${PORT}/api/`);
+  });
+
   let offset = 0;
 
   while (true) {
@@ -205,6 +240,9 @@ async function handleMessage(
     if (text === "🔗 Mini App URL") { await handleAdminMiniApp(env.BOT_TOKEN, supabase, chatId, userId, "admin_miniapp"); return; }
     if (text === "🗑️ Remove Mini App URL") { await handleAdminRemoveMiniApp(env.BOT_TOKEN, supabase, chatId, "admin_rm_miniapp"); return; }
     if (text === "🗑️ Reset Data") { await handleAdminResetData(env.BOT_TOKEN, supabase, chatId, "admin_reset"); return; }
+    if (text === "🎯 Create Campaign") { await handleAdminCreateCampaign(env.BOT_TOKEN, supabase, chatId, userId); return; }
+    if (text === "📋 List Campaigns") { await handleAdminListCampaigns(env.BOT_TOKEN, supabase, chatId); return; }
+    if (text === "➕ Add Task") { await handleAdminAddTask(env.BOT_TOKEN, supabase, chatId, userId); return; }
   }
 
   if (adminIds.includes(String(userId)) && text && !text.startsWith("/")) {
