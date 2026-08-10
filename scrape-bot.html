@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Bots.Business Bot Scraper</title>
+<style>
+body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; background: #1a1a2e; color: #eee; }
+h1 { color: #00d2ff; }
+.btn { background: #00d2ff; color: #000; padding: 15px 30px; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; margin: 10px 0; }
+.btn:hover { background: #00b4d8; }
+.btn:disabled { background: #555; cursor: not-allowed; }
+#status { margin-top: 20px; padding: 15px; background: #16213e; border-radius: 8px; white-space: pre-wrap; }
+.success { color: #00ff88; }
+.error { color: #ff4444; }
+.info { color: #ffaa00; }
+</style>
+</head>
+<body>
+<h1>Bot Code Scraper</h1>
+<p>Step 1: Pehle <a href="https://app.bots.business" target="_blank" style="color:#00d2ff;">app.bots.business</a> pe login karo (naye tab mein)<br>
+Step 2: Wapas aao aur neeche button dabao</p>
+<button class="btn" onclick="scrape()" id="scrapeBtn">Scrape Bot Code</button>
+<div id="status"></div>
+
+<script>
+const BOT_ID = 2846817;
+
+async function api(path) {
+    const r = await fetch('https://api.bots.business' + path, { credentials: 'include' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+    return r.json();
+}
+
+function log(msg, cls = 'info') {
+    const el = document.getElementById('status');
+    el.innerHTML += `<span class="${cls}">${msg}</span>\n`;
+}
+
+async function scrape() {
+    const btn = document.getElementById('scrapeBtn');
+    btn.disabled = true;
+    btn.textContent = 'Scraping...';
+    document.getElementById('status').innerHTML = '';
+
+    try {
+        log('Fetching bot info...');
+        const bot = await api('/v2/bots/' + BOT_ID);
+        log('Bot: ' + (bot.name || bot.title || JSON.stringify(bot).substring(0, 100)), 'success');
+
+        log('Fetching commands...');
+        let commands;
+        try {
+            commands = await api('/v2/bots/' + BOT_ID + '/commands');
+        } catch(e) {
+            log('Commands endpoint failed, trying alternatives...', 'info');
+            try {
+                commands = await api('/bots/' + BOT_ID + '/commands');
+            } catch(e2) {
+                commands = [];
+            }
+        }
+        log('Commands found: ' + (Array.isArray(commands) ? commands.length : JSON.stringify(commands).substring(0, 200)), 'success');
+
+        log('Fetching behaviors...');
+        let behaviors;
+        try {
+            behaviors = await api('/v2/bots/' + BOT_ID + '/behaviors');
+        } catch(e) {
+            try {
+                behaviors = await api('/bots/' + BOT_ID + '/behaviors');
+            } catch(e2) {
+                behaviors = [];
+            }
+        }
+        log('Behaviors found: ' + (Array.isArray(behaviors) ? behaviors.length : 'N/A'), 'success');
+
+        log('Fetching properties...');
+        let properties;
+        try {
+            properties = await api('/v2/bots/' + BOT_ID + '/properties');
+        } catch(e) {
+            properties = {};
+        }
+
+        const data = { bot, commands, behaviors, properties, exportedAt: new Date().toISOString() };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'bot-2846817-full-export.json';
+        a.click();
+
+        log('DONE! File downloaded.', 'success');
+        log('Ab file yahan paste karo ya drag & drop karo.', 'success');
+    } catch(e) {
+        log('ERROR: ' + e.message, 'error');
+        log('Ensure you are logged in to app.bots.business in another tab.', 'error');
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Scrape Bot Code';
+}
+</script>
+</body>
+</html>

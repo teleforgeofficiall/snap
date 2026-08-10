@@ -39,6 +39,15 @@ export async function handleWithdraw(
 
   const referralRequired = 5;
   const hasEnoughReferrals = user.referral_count >= referralRequired;
+  const isEligible = channelJoined && hasEnoughReferrals;
+
+  // Update eligible flag in database
+  if (isEligible) {
+    await supabase
+      .from("users")
+      .update({ eligible: true })
+      .eq("telegram_id", userId);
+  }
 
   const miniAppUrl = await getSetting(supabase, "mini_app_url");
 
@@ -81,7 +90,7 @@ function withdrawText(
 ✅ <b>Eligibility Criteria</b>
 
 1️⃣ Join Official TG channel.   ${channelJoined ? "✅" : "❌"}
-2️⃣ Invite at least ${referralRequired} friends.    ${currentReferrals}/${referralRequired}
+2️⃣ Invite at least ${referralRequired} friends.    ${hasEnoughReferrals ? "✅" : `${currentReferrals}/${referralRequired}`}
 
-<i>🚀 Complete all required criteria to become eligible for SNAP claiming.</i>`;
+${channelJoined && hasEnoughReferrals ? "🎉 <b>You are eligible for SNAP claiming!</b>" : "<i>🚀 Complete all required criteria to become eligible for SNAP claiming.</i>"}`;
 }

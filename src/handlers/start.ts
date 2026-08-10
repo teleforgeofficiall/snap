@@ -138,9 +138,17 @@ export async function handleVerifyContinue(
     // Check if this user was referred by someone
     const { data: user } = await supabase
       .from("users")
-      .select("referred_by, username, first_name")
+      .select("referred_by, username, first_name, referral_count")
       .eq("telegram_id", userId)
       .single();
+
+    // Update eligible flag if user already has 5+ referrals
+    if (user && user.referral_count >= 5) {
+      await supabase
+        .from("users")
+        .update({ eligible: true })
+        .eq("telegram_id", userId);
+    }
 
     if (user?.referred_by) {
       // Find referrer
@@ -154,14 +162,22 @@ export async function handleVerifyContinue(
         const perRefStr = await getSetting(supabase, "per_referral_points");
         const perRef = parseInt(perRefStr || "100");
         const newUsername = user.username ? `@${user.username}` : user.first_name;
+        const newReferralCount = referrer.referral_count + 1;
 
-        // Credit referrer: update referral_count and balance
+        // Credit referrer: update referral_count, balance, and eligible flag
+        const updateData: any = {
+          referral_count: newReferralCount,
+          balance: referrer.balance + perRef,
+        };
+
+        // Mark eligible if 5+ referrals
+        if (newReferralCount >= 5) {
+          updateData.eligible = true;
+        }
+
         await supabase
           .from("users")
-          .update({
-            referral_count: referrer.referral_count + 1,
-            balance: referrer.balance + perRef,
-          })
+          .update(updateData)
           .eq("id", referrer.id);
 
         // Notify referrer: user verified, SNAP credited

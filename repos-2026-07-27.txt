@@ -1,0 +1,1797 @@
+MHSanaei/3x-ui
+
+Description:
+Xray panel supporting multi-protocol multi-user expire day & traffic & IP limit (Vmess, Vless, Trojan, ShadowSocks, Wireguard, Hysteria, …
+
+Stars: 43740
+Forks: 0
+Language: Go
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/MHSanaei/3x-ui
+
+---
+
+winshining/nginx-http-flv-module
+
+Description:
+A media streaming server based on nginx-rtmp-module. In addtion to the features nginx-rtmp-module provides, HTTP-FLV, GOP cache, VHosts (…
+
+Stars: 2932
+Forks: 0
+Language: C
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-04
+Archived: No
+
+GitHub:
+https://github.com/winshining/nginx-http-flv-module
+
+---
+
+hossinasaadi/x-ui
+
+Description:
+xray panel supporting multi-protocol multi-user expire day & traffic (Vmess & Vless) and IP Restriction
+
+Stars: 580
+Forks: 0
+Language: JavaScript
+Activity: inactive
+Created: 2026-07-27
+Updated: 2023-01-04
+Archived: No
+
+GitHub:
+https://github.com/hossinasaadi/x-ui
+
+---
+
+networkservicemesh/networkservicemesh
+
+Description:
+The Hybrid/Multi-cloud IP Service Mesh
+
+Stars: 503
+Forks: 0
+Language: Go
+Activity: archived
+Created: 2026-07-27
+Updated: 2021-10-28
+Archived: Yes
+
+GitHub:
+https://github.com/networkservicemesh/networkservicemesh
+
+---
+
+vernette/ipregion
+
+Description:
+🌎 Multi-source IP geolocation tester - check how streaming, GeoIP, and CDN services detect your location
+
+Stars: 455
+Forks: 0
+Language: Shell
+Activity: active
+Created: 2026-07-27
+Updated: 2026-06-20
+Archived: No
+
+GitHub:
+https://github.com/vernette/ipregion
+
+---
+
+VikasSukhija/Downloads
+
+Description:
+AD Health Check, Send HTML Email, Ping machines, Encrypt Password,Bulk Password,Microsoft Teams,Monitor Certificate expiry, Monitor cert …
+
+Stars: 420
+Forks: 0
+Language: PowerShell
+Activity: inactive
+Created: 2026-07-27
+Updated: 2025-02-16
+Archived: No
+
+GitHub:
+https://github.com/VikasSukhija/Downloads
+
+---
+
+xullexer/PYDNS-Scanner
+
+Description:
+A modern, high-performance DNS scanner with a beautiful Terminal User Interface (TUI) built with Textual. This tool can scan millions of IP…
+
+Stars: 403
+Forks: 0
+Language: Python
+Activity: low-activity
+Created: 2026-07-27
+Updated: 2026-03-30
+Archived: No
+
+GitHub:
+https://github.com/xullexer/PYDNS-Scanner
+
+---
+
+mobilejazz/docker-ipsec-vpn-server
+
+Description:
+Multi-user IPSec server docker image
+
+Stars: 400
+Forks: 0
+Language: Shell
+Activity: archived
+Created: 2026-07-27
+Updated: 2023-03-20
+Archived: Yes
+
+GitHub:
+https://github.com/mobilejazz/docker-ipsec-vpn-server
+
+---
+
+Xooppp/SoulTaker-Multitool
+
+Description:
+SoulTaker is a Open-Source MultiTool written by myself, contains a lot of things such as a phone spoofer, ip lookup, dox tool etc.
+
+Stars: 381
+Forks: 0
+Language: N/A
+Activity: inactive
+Created: 2026-07-27
+Updated: 2020-09-27
+Archived: No
+
+GitHub:
+https://github.com/Xooppp/SoulTaker-Multitool
+
+---
+
+ayadseghairi/tornet
+
+Description:
+TorNet is a Python package that automates IP address changes using Tor. It is a top tool for securing your networks by frequently changing …
+
+Stars: 273
+Forks: 0
+Language: HTML
+Activity: active
+Created: 2026-07-27
+Updated: 2026-05-14
+Archived: No
+
+GitHub:
+https://github.com/ayadseghairi/tornet
+
+---
+
+luoxue-bot/warp_auto_change_ip
+
+Description:
+This is a script for warp. You can use it to change your IP of warp which was blocked by Netflix
+
+Stars: 268
+Forks: 0
+Language: Shell
+Activity: inactive
+Created: 2026-07-27
+Updated: 2021-12-02
+Archived: No
+
+GitHub:
+https://github.com/luoxue-bot/warp_auto_change_ip
+
+---
+
+techchipnet/ip-changer
+
+Description:
+A simple and efficient tool to automatically change your IP address using Tor network at regular intervals.
+
+Stars: 233
+Forks: 0
+Language: Shell
+Activity: inactive
+Created: 2026-07-27
+Updated: 2025-04-09
+Archived: No
+
+GitHub:
+https://github.com/techchipnet/ip-changer
+
+---
+
+isPique/Tor-IP-Changer
+
+Description:
+A tool for automatically change the Tor IP address over time.
+
+Stars: 147
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-27
+Updated: 2025-04-06
+Archived: No
+
+GitHub:
+https://github.com/isPique/Tor-IP-Changer
+
+---
+
+DusanMadar/TorIpChanger
+
+Description:
+Python powered way to get a unique Tor IP
+
+Stars: 72
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-27
+Updated: 2025-07-24
+Archived: No
+
+GitHub:
+https://github.com/DusanMadar/TorIpChanger
+
+---
+
+LxaNce-Hacker/IP-Changer
+
+Description:
+Using this tool, U can change your physical ip address 😉
+
+Stars: 55
+Forks: 0
+Language: Shell
+Activity: inactive
+Created: 2026-07-27
+Updated: 2025-03-22
+Archived: No
+
+GitHub:
+https://github.com/LxaNce-Hacker/IP-Changer
+
+---
+
+markowanga/tor-python-easy
+
+Description:
+Simple library to manage tor proxy and IP changes
+
+Stars: 28
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-27
+Updated: 2023-06-08
+Archived: No
+
+GitHub:
+https://github.com/markowanga/tor-python-easy
+
+---
+
+feross/SpoofMAC
+
+Description:
+💼 Change your MAC address for debugging
+
+Stars: 3160
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-27
+Updated: 2018-01-27
+Archived: No
+
+GitHub:
+https://github.com/feross/SpoofMAC
+
+---
+
+FDX100/Auto_Tor_IP_changer
+
+Description:
+change your Ip address automatically This tool based on tor project
+
+Stars: 1163
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-27
+Updated: 2024-09-16
+Archived: No
+
+GitHub:
+https://github.com/FDX100/Auto_Tor_IP_changer
+
+---
+
+iproute2/iproute2
+
+Description:
+Iproute2 Source Code Mirror - This is a publish-only repository. Please follow README.devel procedure for any changes.
+
+Stars: 982
+Forks: 0
+Language: C
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/iproute2/iproute2
+
+---
+
+trzsz/tsshd
+
+Description:
+tsshd is a UDP-based SSH server built for unreliable networks. It supports seamless roaming across networks and IP changes, and works wel…
+
+Stars: 504
+Forks: 0
+Language: Go
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/trzsz/tsshd
+
+---
+
+seevik2580/tor-ip-changer
+
+Description:
+request new identity every X seconds interval using TOR client
+
+Stars: 501
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-13
+Archived: No
+
+GitHub:
+https://github.com/seevik2580/tor-ip-changer
+
+---
+
+gr33n37/gr33n37-ip-changer
+
+Description:
+tool used to change your IP every second your want
+
+Stars: 469
+Forks: 0
+Language: Shell
+Activity: inactive
+Created: 2026-07-27
+Updated: 2024-07-05
+Archived: No
+
+GitHub:
+https://github.com/gr33n37/gr33n37-ip-changer
+
+---
+
+KurtisLiggett/Simple-IP-Config
+
+Description:
+View and change your local IP addresses.
+
+Stars: 390
+Forks: 0
+Language: AutoIt
+Activity: inactive
+Created: 2026-07-27
+Updated: 2023-12-07
+Archived: No
+
+GitHub:
+https://github.com/KurtisLiggett/Simple-IP-Config
+
+---
+
+chrisneagu/FTC-Skystone-Dark-Angels-Romania-2020
+
+Description:
+" Renames "WiFi Direct Name" to "WiFi Name" Adds Control Hub OS version, when viewing the report of a Control Hub Hides the airplane mode…
+
+Stars: 298
+Forks: 0
+Language: Java
+Activity: inactive
+Created: 2026-07-27
+Updated: 2024-04-12
+Archived: No
+
+GitHub:
+https://github.com/chrisneagu/FTC-Skystone-Dark-Angels-Romania-2020
+
+---
+
+ultrafunkamsterdam/AnonSurf
+
+Description:
+Change your IP address instantly - easy small GUI tool for Windows (linux soon)
+
+Stars: 292
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-27
+Updated: 2020-06-04
+Archived: No
+
+GitHub:
+https://github.com/ultrafunkamsterdam/AnonSurf
+
+---
+
+Pack3tL0ss/ConsolePi
+
+Description:
+Raspberry Pi Based Serial Console Server, with PushBullet Notification of IP changes, Automatic VPN termination, custom menu, Power Outle…
+
+Stars: 280
+Forks: 0
+Language: Python
+Activity: low-activity
+Created: 2026-07-27
+Updated: 2026-03-27
+Archived: No
+
+GitHub:
+https://github.com/Pack3tL0ss/ConsolePi
+
+---
+
+koala73/worldmonitor
+
+Description:
+Real-time global intelligence dashboard. AI-powered news aggregation, geopolitical monitoring, and infrastructure tracking in a unified s…
+
+Stars: 75329
+Forks: 0
+Language: TypeScript
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/koala73/worldmonitor
+
+---
+
+serhii-londar/open-source-mac-os-apps
+
+Description:
+🚀 Awesome list of open source applications for macOS. https://t.me/s/opensourcemacosapps
+
+Stars: 49795
+Forks: 0
+Language: N/A
+Activity: low-activity
+Created: 2026-07-27
+Updated: 2026-04-15
+Archived: No
+
+GitHub:
+https://github.com/serhii-londar/open-source-mac-os-apps
+
+---
+
+usebruno/bruno
+
+Description:
+Opensource IDE For Exploring and Testing API's (lightweight alternative to Postman/Insomnia)
+
+Stars: 45928
+Forks: 0
+Language: JavaScript
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/usebruno/bruno
+
+---
+
+nextcloud/server
+
+Description:
+☁️ Nextcloud server, a safe home for all your data
+
+Stars: 36276
+Forks: 0
+Language: PHP
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/nextcloud/server
+
+---
+
+chatwoot/chatwoot
+
+Description:
+Open-source live-chat, email support, omni-channel desk. An alternative to Intercom, Zendesk, Salesforce Service Cloud etc. 🔥💬
+
+Stars: 34812
+Forks: 0
+Language: Ruby
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/chatwoot/chatwoot
+
+---
+
+FreeCAD/FreeCAD
+
+Description:
+Official source code of FreeCAD, a free and opensource multiplatform 3D parametric modeler.
+
+Stars: 32414
+Forks: 0
+Language: C++
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/FreeCAD/FreeCAD
+
+---
+
+Fincept-Corporation/FinceptTerminal
+
+Description:
+FinceptTerminal is a modern finance application offering advanced market analytics, investment research, and economic data tools, designe…
+
+Stars: 29235
+Forks: 0
+Language: C++
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/Fincept-Corporation/FinceptTerminal
+
+---
+
+ente/ente
+
+Description:
+💚 End-to-end encrypted cloud for everything.
+
+Stars: 28007
+Forks: 0
+Language: Dart
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/ente/ente
+
+---
+
+krayin/laravel-crm
+
+Description:
+Free & Opensource Laravel CRM solution for SMEs and Enterprises for complete customer lifecycle management.
+
+Stars: 23522
+Forks: 0
+Language: PHP
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-24
+Archived: No
+
+GitHub:
+https://github.com/krayin/laravel-crm
+
+---
+
+Atlas-OS/Atlas
+
+Description:
+🚀 An open and lightweight modification to Windows, designed to optimize performance, privacy and usability.
+
+Stars: 21167
+Forks: 0
+Language: Batchfile
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-23
+Archived: No
+
+GitHub:
+https://github.com/Atlas-OS/Atlas
+
+---
+
+2dust/v2rayNG
+
+Description:
+A V2Ray client for Android, support Xray core and v2fly core
+
+Stars: 60164
+Forks: 0
+Language: Kotlin
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/2dust/v2rayNG
+
+---
+
+chen08209/FlClash
+
+Description:
+A multi-platform proxy client based on ClashMeta,simple and easy to use, open-source and ad-free.
+
+Stars: 46927
+Forks: 0
+Language: Dart
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/chen08209/FlClash
+
+---
+
+freefq/free
+
+Description:
+翻墙、免费翻墙、免费科学上网、免费节点、免费梯子、免费ss/v2ray/trojan节点、蓝灯、谷歌商店、翻墙梯子
+
+Stars: 41356
+Forks: 0
+Language: N/A
+Activity: inactive
+Created: 2026-07-27
+Updated: 2024-08-20
+Archived: No
+
+GitHub:
+https://github.com/freefq/free
+
+---
+
+XTLS/Xray-core
+
+Description:
+Xray, Penetrates Everything. Also the best v2ray-core. Where the magic happens. An open platform for various uses.
+
+Stars: 40689
+Forks: 0
+Language: Go
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/XTLS/Xray-core
+
+---
+
+tailscale/tailscale
+
+Description:
+The easiest, most secure way to use WireGuard and 2FA.
+
+Stars: 34417
+Forks: 0
+Language: Go
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/tailscale/tailscale
+
+---
+
+v2fly/v2ray-core
+
+Description:
+A platform for building proxies to bypass network restrictions.
+
+Stars: 34391
+Forks: 0
+Language: Go
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/v2fly/v2ray-core
+
+---
+
+XX-net/XX-Net
+
+Description:
+A proxy tool to bypass GFW.
+
+Stars: 33455
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-27
+Updated: 2026-06-21
+Archived: No
+
+GitHub:
+https://github.com/XX-net/XX-Net
+
+---
+
+trailofbits/algo
+
+Description:
+Set up a personal VPN in the cloud
+
+Stars: 30332
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-24
+Archived: No
+
+GitHub:
+https://github.com/trailofbits/algo
+
+---
+
+hwdsl2/setup-ipsec-vpn
+
+Description:
+Set up your own IPsec VPN server in just a few minutes, with IPsec/L2TP, Cisco IPsec and IKEv2. Supports Ubuntu, Debian, CentOS/RHEL, Alp…
+
+Stars: 28257
+Forks: 0
+Language: Shell
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/hwdsl2/setup-ipsec-vpn
+
+---
+
+netbirdio/netbird
+
+Description:
+Connect your devices into a secure WireGuard®-based overlay network with SSO, MFA and granular access controls.
+
+Stars: 27771
+Forks: 0
+Language: Go
+Activity: active
+Created: 2026-07-27
+Updated: 2026-07-27
+Archived: No
+
+GitHub:
+https://github.com/netbirdio/netbird
+
+---
+
+TryCaspian/caspian-sdk
+
+Description:
+One identity for your AI agent across Slack, Discord, Telegram, WhatsApp, Instagram, email, SMS, X — a single on_message handler. Open-so…
+
+Stars: 244
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-26
+Archived: No
+
+GitHub:
+https://github.com/TryCaspian/caspian-sdk
+
+---
+
+markrussinovich/Polypost
+
+Description:
+Draft a post once and format it for LinkedIn, X, Bluesky, Threads, Mastodon, Facebook, and Instagram — each platform's length and formatt…
+
+Stars: 206
+Forks: 0
+Language: TypeScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/markrussinovich/Polypost
+
+---
+
+nando0x/ProspectOS
+
+Description:
+CRM de prospecção de leads com scraping de Google Maps + Instagram e mensagens geradas por IA.
+
+Stars: 188
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-20
+Archived: No
+
+GitHub:
+https://github.com/nando0x/ProspectOS
+
+---
+
+Vedant1521/fetchit
+
+Description:
+A terminal video downloader — grab any video from YouTube, X, Instagram, Threads, TikTok & 2000+ sites right from your terminal. Paste a …
+
+Stars: 110
+Forks: 0
+Language: TypeScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-26
+Archived: No
+
+GitHub:
+https://github.com/Vedant1521/fetchit
+
+---
+
+bradautomates/content-ideas
+
+Description:
+Track competitors across X, Instagram, TikTok, and YouTube, see what they post, what performs, and get content ideas backed by real engag…
+
+Stars: 63
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-05-30
+Archived: No
+
+GitHub:
+https://github.com/bradautomates/content-ideas
+
+---
+
+subzeroid/insto
+
+Description:
+🔍 Interactive Instagram OSINT CLI with pluggable HikerAPI and aiograpi backends
+
+Stars: 62
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-20
+Archived: No
+
+GitHub:
+https://github.com/subzeroid/insto
+
+---
+
+vvselijah/Claudegram
+
+Description:
+@elijahaifl on instagram built out the steps to have any claude environment recreate your own personalized instagram analytics dashboard
+
+Stars: 43
+Forks: 0
+Language: HTML
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-21
+Archived: No
+
+GitHub:
+https://github.com/vvselijah/Claudegram
+
+---
+
+kawsarlog/social-media-apis
+
+Description:
+10,000+ Social media APIs for posts, profiles, engagement, and trend data across networks.
+
+Stars: 35
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/kawsarlog/social-media-apis
+
+---
+
+mosamir01/Reel
+
+Description:
+macOS app to download media from 1000+ sites — YouTube, TikTok, Instagram, Twitter/X and more
+
+Stars: 34
+Forks: 0
+Language: Swift
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-13
+Archived: No
+
+GitHub:
+https://github.com/mosamir01/Reel
+
+---
+
+dotcart/tiktok-reporting-bot
+
+Description:
+TikTok report bot are a tool designed to automate the process of reporting account on TikTok that may violate the platform's policies. Th…
+
+Stars: 9
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-22
+Archived: No
+
+GitHub:
+https://github.com/dotcart/tiktok-reporting-bot
+
+---
+
+b-nnett/meta-display-codex
+
+Description:
+Codex Ray-Ban iOS app and Meta wearable display tooling
+
+Stars: 6
+Forks: 0
+Language: Swift
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-05
+Archived: No
+
+GitHub:
+https://github.com/b-nnett/meta-display-codex
+
+---
+
+ktn1703/Mass-Ban-Tool
+
+Description:
+a selfbot tool that help you mass ban members
+
+Stars: 9
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-13
+Archived: No
+
+GitHub:
+https://github.com/ktn1703/Mass-Ban-Tool
+
+---
+
+Tokyo17S0/rbx-enforcement-ban-tool
+
+Description:
+Enforcement Ban Tool by RoAppeal is a self-hosted Bun and TypeScript app for managing Roblox enforcement ban appeals from a local dashboa…
+
+Stars: 4
+Forks: 0
+Language: TypeScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-24
+Archived: No
+
+GitHub:
+https://github.com/Tokyo17S0/rbx-enforcement-ban-tool
+
+---
+
+Anonymzx/BangtrixToolkit
+
+Description:
+Real-time ComfyUI Hardware Monitor with native AMD ROCm and All GPU/APU NVIDIA support and Universal Prompt Translator node for multiling…
+
+Stars: 2
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-05
+Archived: No
+
+GitHub:
+https://github.com/Anonymzx/BangtrixToolkit
+
+---
+
+0xMatdis/Robinhood-Chain-Bankr-Tools
+
+Description:
+Open-source toolkit and Bankr skills for AI Agents on Robinhood Chain | Tokenized Stocks • Automation • Bridging • Yield Optimization
+
+Stars: 2
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-17
+Archived: No
+
+GitHub:
+https://github.com/0xMatdis/Robinhood-Chain-Bankr-Tools
+
+---
+
+malitech00001-cyber/ban_site
+
+Description:
+ban tool
+
+Stars: 1
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-05-14
+Archived: No
+
+GitHub:
+https://github.com/malitech00001-cyber/ban_site
+
+---
+
+hgghbfhhbhhhfgh-png/mazzu-Ban-tool
+
+Description:
+N/A
+
+Stars: 1
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-25
+Archived: No
+
+GitHub:
+https://github.com/hgghbfhhbhhhfgh-png/mazzu-Ban-tool
+
+---
+
+ahmed-jishan/bangla-tools
+
+Description:
+N/A
+
+Stars: 1
+Forks: 0
+Language: JavaScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-05-19
+Archived: No
+
+GitHub:
+https://github.com/ahmed-jishan/bangla-tools
+
+---
+
+kalyanmaity2026-ctrl/Bangla-Tools-
+
+Description:
+Kalyan Maity 2026
+
+Stars: 1
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-24
+Archived: No
+
+GitHub:
+https://github.com/kalyanmaity2026-ctrl/Bangla-Tools-
+
+---
+
+phantom1785322-hub/Ban-tool-for-discord
+
+Description:
+This tool automates webhook message repeating to perform a exploit
+
+Stars: 1
+Forks: 0
+Language: Python
+Activity: low-activity
+Created: 2026-07-26
+Updated: 2026-04-26
+Archived: No
+
+GitHub:
+https://github.com/phantom1785322-hub/Ban-tool-for-discord
+
+---
+
+Nai64/BandcampAutoUploader
+
+Description:
+Upload albums without needing the Bandcamp Pro with very fancy GUI!
+
+Stars: 109
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/Nai64/BandcampAutoUploader
+
+---
+
+wauputr4/bansos
+
+Description:
+bansos.dev — Promo developer Indonesia: domain gratis, AI credits, cloud credits, hosting free-tier, API credits, database credits, start…
+
+Stars: 52
+Forks: 0
+Language: Svelte
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/wauputr4/bansos
+
+---
+
+bagtele/telegram-reporting-bot
+
+Description:
+Telegram report bot are a tool designed to automate the process of reporting account channel group on Telegram that may violate the platf…
+
+Stars: 33
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-14
+Archived: No
+
+GitHub:
+https://github.com/bagtele/telegram-reporting-bot
+
+---
+
+CLYiX/CodePaidie
+
+Description:
+Code paid die,which means 'Kill The Paid AI Coding Agent'. Turn ChatGPT, Gemini, Kimi, or any AI into a free local coding environment. Re…
+
+Stars: 30
+Forks: 0
+Language: HTML
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-22
+Archived: No
+
+GitHub:
+https://github.com/CLYiX/CodePaidie
+
+---
+
+mrcloua/tiktok-reporting-tool
+
+Description:
+TikTok report bot are a tool designed to automate the process of reporting account on TikTok that may violate the platform's policies. Th…
+
+Stars: 23
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-02
+Archived: No
+
+GitHub:
+https://github.com/mrcloua/tiktok-reporting-tool
+
+---
+
+GullDominate/Bandicam-Screen-Recorder-Technician-Suite
+
+Description:
+Bandicam Screen Recorder Technician Suite — timeline tools, export presets and creative modules enabled for video production on Windows. …
+
+Stars: 20
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-20
+Archived: No
+
+GitHub:
+https://github.com/GullDominate/Bandicam-Screen-Recorder-Technician-Suite
+
+---
+
+NovaMindFinish/lol-trainer-2026
+
+Description:
+League of Legends tools with auto-accept, auto-pick, auto-ban, skin changer, zoom hack, and champion selection automation.
+
+Stars: 18
+Forks: 0
+Language: HTML
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-21
+Archived: No
+
+GitHub:
+https://github.com/NovaMindFinish/lol-trainer-2026
+
+---
+
+grokigi/facebook-reporting-bot
+
+Description:
+FaceBook report bot are a tool designed to automate the process of reporting account page group on FaceBook that may violate the platform…
+
+Stars: 14
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-14
+Archived: No
+
+GitHub:
+https://github.com/grokigi/facebook-reporting-bot
+
+---
+
+selsabil-webdev/Automation-Studio-Instagram-Toolkit
+
+Description:
+Best Instagram Account Generator & Auto Creator Tool 2026 GUI
+
+Stars: 55
+Forks: 0
+Language: HTML
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-26
+Archived: No
+
+GitHub:
+https://github.com/selsabil-webdev/Automation-Studio-Instagram-Toolkit
+
+---
+
+zxyandreay/followback-checker
+
+Description:
+FollowBack Checker is a web app that helps users analyze their Instagram followers and following list using their official Instagram data…
+
+Stars: 10
+Forks: 0
+Language: TypeScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-21
+Archived: No
+
+GitHub:
+https://github.com/zxyandreay/followback-checker
+
+---
+
+ginbesse/InstaAI
+
+Description:
+InstaAI, create your AI instagram account and bot securilty.
+
+Stars: 7
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-05
+Archived: No
+
+GitHub:
+https://github.com/ginbesse/InstaAI
+
+---
+
+AetherTools-com/instagram-automation-tool
+
+Description:
+Free Instagram automation script / parser. For industrial-grade multi-account management with Anti-Detect, check out Aether Tools.
+
+Stars: 5
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-05
+Archived: No
+
+GitHub:
+https://github.com/AetherTools-com/instagram-automation-tool
+
+---
+
+juandiegoc30/ig-mutualcheck
+
+Description:
+A privacy-first Chrome extension to analyze Instagram followers, filter results, and detect accounts that don’t follow you back
+
+Stars: 5
+Forks: 0
+Language: JavaScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-22
+Archived: No
+
+GitHub:
+https://github.com/juandiegoc30/ig-mutualcheck
+
+---
+
+issaghostlife/instatakker-app
+
+Description:
+InstaTakker is a desktop tool that helps users manage Instagram engagement workflows from one clean app window. It can like posts from se…
+
+Stars: 5
+Forks: 0
+Language: JavaScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-15
+Archived: No
+
+GitHub:
+https://github.com/issaghostlife/instatakker-app
+
+---
+
+crystal70916/rki-meta-spy
+
+Description:
+CLI MetaSpy (Facebook, Instagram) scraper and crawler - instagram account, facebook accounts, pages and search
+
+Stars: 3
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-05-10
+Archived: No
+
+GitHub:
+https://github.com/crystal70916/rki-meta-spy
+
+---
+
+VidhuPrakash/instagram-oauth-nodejs
+
+Description:
+Instagram OAuth 2.0 with Node.js — full login flow, token exchange, profile and insights for creator, business accounts
+
+Stars: 3
+Forks: 0
+Language: JavaScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-05
+Archived: No
+
+GitHub:
+https://github.com/VidhuPrakash/instagram-oauth-nodejs
+
+---
+
+furkankeremselimoglu/insta-followers-diff
+
+Description:
+Find which Instagram accounts you follow that don't follow you back — 100% in your browser, using Instagram's official data export. No lo…
+
+Stars: 0
+Forks: 0
+Language: JavaScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-19
+Archived: No
+
+GitHub:
+https://github.com/furkankeremselimoglu/insta-followers-diff
+
+---
+
+BedIsHome/IG-Monitor-Bot-with-SS-Noti-
+
+Description:
+A powerful Discord bot designed to monitor Instagram accounts for ban and unban statuses. Built with Discord.js, Puppeteer, and MongoDB.
+
+Stars: 3
+Forks: 0
+Language: JavaScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-23
+Archived: No
+
+GitHub:
+https://github.com/BedIsHome/IG-Monitor-Bot-with-SS-Noti-
+
+---
+
+huernam/instagram-reporting-bot
+
+Description:
+Instagram report bot are a tool designed to automate the process of reporting account on Instagram that may violate the platform's polici…
+
+Stars: 1
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-24
+Archived: No
+
+GitHub:
+https://github.com/huernam/instagram-reporting-bot
+
+---
+
+TheBooleanJulian/ig-uwu-bot
+
+Description:
+Watches your Instagram account and auto-announces new posts to Telegram — no scraping, no stored password, no ban risk.
+
+Stars: 1
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-17
+Archived: No
+
+GitHub:
+https://github.com/TheBooleanJulian/ig-uwu-bot
+
+---
+
+offcskullgaming-pixel/instagram-ban-reporter
+
+Description:
+"Instagram account ban reporting and monitoring tool for Kali Linux"
+
+Stars: 0
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-14
+Archived: No
+
+GitHub:
+https://github.com/offcskullgaming-pixel/instagram-ban-reporter
+
+---
+
+akashgamerroster-a11y/BANGALI-SKULL
+
+Description:
+a website for my YOUTUBE and INSTAGRAM account
+
+Stars: 0
+Forks: 0
+Language: CSS
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-27
+Archived: No
+
+GitHub:
+https://github.com/akashgamerroster-a11y/BANGALI-SKULL
+
+---
+
+vaproh/ig-pulse
+
+Description:
+Telegram bot for tracking Instagram account status — detects bans and restorations instantly
+
+Stars: 0
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-06
+Archived: No
+
+GitHub:
+https://github.com/vaproh/ig-pulse
+
+---
+
+noobaddy/Instagram-ban-unban-report-tool
+
+Description:
+Ban, unban, or report any Instagram account — automated, untraceable, and fast. Up to 2–3M followers supported. No technical skills needed.
+
+Stars: 0
+Forks: 0
+Language: N/A
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-20
+Archived: No
+
+GitHub:
+https://github.com/noobaddy/Instagram-ban-unban-report-tool
+
+---
+
+DIYgod/RSSHub
+
+Description:
+🧡 Everything is RSSible
+
+Stars: 45411
+Forks: 0
+Language: TypeScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-26
+Archived: No
+
+GitHub:
+https://github.com/DIYgod/RSSHub
+
+---
+
+imputnet/cobalt
+
+Description:
+best way to save what you love
+
+Stars: 41788
+Forks: 0
+Language: Svelte
+Activity: low-activity
+Created: 2026-07-26
+Updated: 2026-04-06
+Archived: No
+
+GitHub:
+https://github.com/imputnet/cobalt
+
+---
+
+GorvGoyl/Clone-Wars
+
+Description:
+100+ open-source clones of popular sites like Airbnb, Amazon, Instagram, Netflix, Tiktok, Spotify, Whatsapp, Youtube etc. See source code…
+
+Stars: 36287
+Forks: 0
+Language: N/A
+Activity: inactive
+Created: 2026-07-26
+Updated: 2024-08-06
+Archived: No
+
+GitHub:
+https://github.com/GorvGoyl/Clone-Wars
+
+---
+
+transloadit/uppy
+
+Description:
+The next open source file uploader for web browsers 🐶
+
+Stars: 30891
+Forks: 0
+Language: TypeScript
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-26
+Archived: No
+
+GitHub:
+https://github.com/transloadit/uppy
+
+---
+
+InstaPy/InstaPy
+
+Description:
+📷 Instagram Bot - Tool for automated Instagram interactions
+
+Stars: 18053
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-26
+Updated: 2025-03-03
+Archived: No
+
+GitHub:
+https://github.com/InstaPy/InstaPy
+
+---
+
+Instagram/IGListKit
+
+Description:
+A data-driven UICollectionView framework for building fast and flexible lists.
+
+Stars: 13071
+Forks: 0
+Language: Objective-C
+Activity: active
+Created: 2026-07-26
+Updated: 2026-05-29
+Archived: No
+
+GitHub:
+https://github.com/Instagram/IGListKit
+
+---
+
+instaloader/instaloader
+
+Description:
+Download pictures (or videos) along with their captions and other metadata from Instagram.
+
+Stars: 12989
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-26
+Archived: No
+
+GitHub:
+https://github.com/instaloader/instaloader
+
+---
+
+megadose/holehe
+
+Description:
+holehe allows you to check if the mail is used on different sites like twitter, instagram and will retrieve information on sites with the…
+
+Stars: 11816
+Forks: 0
+Language: Python
+Activity: inactive
+Created: 2026-07-26
+Updated: 2024-09-10
+Archived: No
+
+GitHub:
+https://github.com/megadose/holehe
+
+---
+
+mvanhorn/last30days-skill
+
+Description:
+AI agent skill that researches any topic across Reddit, X, YouTube, HN, Polymarket, and the web - then synthesizes a grounded summary
+
+Stars: 53766
+Forks: 0
+Language: Python
+Activity: active
+Created: 2026-07-26
+Updated: 2026-07-25
+Archived: No
+
+GitHub:
+https://github.com/mvanhorn/last30days-skill
+
+---
+
+DRACULA-HACK/ids-inf
+
+Description:
+ids-inf is a information gathering tool and with extra use full options like number unban and ban and it has phone number information gat…
+
+Stars: 218
+Forks: 0
+Language: Shell
+Activity: active
+Created: 2026-07-26
+Updated: 2026-06-23
+Archived: No
+
+GitHub:
+https://github.com/DRACULA-HACK/ids-inf
