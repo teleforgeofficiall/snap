@@ -143,12 +143,12 @@ export async function handleApi(
 
   // ============ CHECKIN ROUTES ============
   if (path === "/api/checkin/status" && method === "GET") {
-    const today = new Date().toISOString().split("T")[0];
-    const { data: todayCheckin } = await supabase
+    const { data: lastCheckin } = await supabase
       .from("checkins")
-      .select("*")
+      .select("created_at, streak")
       .eq("user_id", user.id)
-      .eq("checkin_date", today)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .single();
 
     const { count: totalCheckins } = await supabase
@@ -156,28 +156,50 @@ export async function handleApi(
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id);
 
+    // Calculate 24h cooldown
+    let next_claim_at = null;
+    let checked_today = false;
+    if (lastCheckin) {
+      const lastTime = new Date(lastCheckin.created_at).getTime();
+      const nextTime = lastTime + 24 * 60 * 60 * 1000;
+      if (Date.now() < nextTime) {
+        next_claim_at = new Date(nextTime).toISOString();
+        checked_today = true;
+      }
+    }
+
     json(res, 200, {
-      checked_today: !!todayCheckin,
+      checked_today,
       total_checkins: totalCheckins || 0,
-      streak: todayCheckin?.streak || 0,
+      streak: lastCheckin?.streak || 0,
+      next_claim_at,
     });
     return true;
   }
 
   if (path === "/api/checkin/claim" && method === "POST") {
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data: existing } = await supabase
+    // 24-hour cooldown check
+    const { data: lastCheckin } = await supabase
       .from("checkins")
-      .select("id")
+      .select("created_at")
       .eq("user_id", user.id)
-      .eq("checkin_date", today)
+      .order("created_at", { ascending: false })
+      .limit(1)
       .single();
 
-    if (existing) {
-      json(res, 400, { error: "Already checked in today" });
-      return true;
+    if (lastCheckin) {
+      const lastTime = new Date(lastCheckin.created_at).getTime();
+      const nextTime = lastTime + 24 * 60 * 60 * 1000;
+      if (Date.now() < nextTime) {
+        const nextClaim = new Date(nextTime);
+        const hours = Math.floor((nextTime - Date.now()) / (1000 * 60 * 60));
+        const mins = Math.floor(((nextTime - Date.now()) % (1000 * 60 * 60)) / (1000 * 60));
+        json(res, 400, { error: `Next claim in ${hours}h ${mins}m`, next_claim_at: nextClaim.toISOString() });
+        return true;
+      }
     }
+
+    const today = new Date().toISOString().split("T")[0];
 
     const { count: totalCheckins } = await supabase
       .from("checkins")
@@ -208,11 +230,14 @@ export async function handleApi(
       description: `Day ${streak} check-in`,
     });
 
+    const nextClaimAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
     json(res, 200, {
       success: true,
       reward,
       streak,
       new_balance: (user.balance || 0) + reward,
+      next_claim_at: nextClaimAt,
     });
     return true;
   }
