@@ -48,12 +48,14 @@ export async function getUserFromInitData(
     return null;
   }
 
-  const { data: user } = await supabase
+  const { data: user, error } = await supabase
     .from("users")
-    .select("*")
+    .select("id, telegram_id, first_name, username, balance, referral_code, referred_by, referral_count, daily_claim_date, is_admin, eligible, created_at")
     .eq("telegram_id", tgUser.id)
     .single();
 
+  if (error || !user) return null;
+  user.gram = 0;
   return user;
 }
 
