@@ -98,22 +98,13 @@ export async function handleApi(
 
   // ============ USER ROUTES ============
   if (path === "/api/user/me" && method === "GET") {
-    const { count: referralCount } = await supabase
-      .from("referrals")
-      .select("*", { count: "exact", head: true })
-      .eq("referrer_id", user.id);
-
-    const { count: totalEarned } = await supabase
-      .from("transactions")
-      .select("*", { count: "exact", head: true })
-      .eq("user_id", user.id);
-
     json(res, 200, {
       id: user.id,
       telegram_id: user.telegram_id,
       first_name: user.first_name,
       username: user.username,
       balance: user.balance || 0,
+      gram: user.gram || 0,
       referral_code: user.referral_code,
       referral_count: user.referral_count || 0,
       eligible: user.eligible || false,
@@ -126,7 +117,7 @@ export async function handleApi(
   if (path === "/api/balance" && method === "GET") {
     json(res, 200, {
       snap: user.balance || 0,
-      gram: 0,
+      gram: user.gram || 0,
     });
     return true;
   }
@@ -312,8 +303,16 @@ export async function handleApi(
     const campaignsWithStatus = campaigns?.map((c: any) => ({
       ...c,
       user_status: participationMap[c.id] || "not_joined",
-      participant_count: 0,
     })) || [];
+
+    // Get real participant counts
+    for (const c of campaignsWithStatus) {
+      const { count } = await supabase
+        .from("campaign_participants")
+        .select("*", { count: "exact", head: true })
+        .eq("campaign_id", c.id);
+      c.participant_count = count || 0;
+    }
 
     json(res, 200, { campaigns: campaignsWithStatus });
     return true;
@@ -455,6 +454,11 @@ export async function handleApi(
       await supabase
         .from("users")
         .update({ balance: (user.balance || 0) + task.reward_amount })
+        .eq("id", user.id);
+    } else {
+      await supabase
+        .from("users")
+        .update({ gram: (user.gram || 0) + task.reward_amount })
         .eq("id", user.id);
     }
 
@@ -656,9 +660,32 @@ export async function handleApi(
       entry.win_rate = newWinRate;
     }
 
+    // Credit reward to user balance
+    const rewardToken = box.reward_token || "GRAM";
+    if (rewardToken === "SNAP") {
+      await supabase
+        .from("users")
+        .update({ balance: (user.balance || 0) + box.reward_amount })
+        .eq("id", user.id);
+    } else {
+      await supabase
+        .from("users")
+        .update({ gram: (user.gram || 0) + box.reward_amount })
+        .eq("id", user.id);
+    }
+
+    await supabase.from("transactions").insert({
+      user_id: user.id,
+      type: "raffle_reward",
+      amount: box.reward_amount,
+      token: rewardToken,
+      description: "Raffle box unlocked",
+    });
+
     json(res, 200, {
       success: true,
       reward: box.reward_amount,
+      token: box.reward_token || "GRAM",
       boxes_unlocked: entry.boxes_unlocked,
       win_rate: entry.win_rate,
     });

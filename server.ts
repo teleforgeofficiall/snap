@@ -46,7 +46,7 @@ import { getSetting } from "./src/utils";
 import { handleApi } from "./src/api";
 
 const USER_MENU_BUTTONS = ["💵 Wallet", "👥 Refer", "🏆 Leaderboard", "ℹ️ About", "💸 Withdraw", "⬅️ Back to Menu"];
-const ADMIN_MENU_BUTTONS = ["📊 Stats", "📢 Add Channel", "🗑️ Remove Channel", "📋 List Channels", "📝 Claim Msg", "📢 Broadcast", "🔍 User Info", "💰 Ref Points", "🎁 Daily Bonus", "🔗 Mini App URL", "🗑️ Remove Mini App URL", "🗑️ Reset Data", "🎯 Create Campaign", "📋 List Campaigns", "➕ Add Task"];
+const ADMIN_MENU_BUTTONS = ["📊 Stats", "📢 Add Channel", "🗑️ Remove Channel", "📋 List Channels", "📝 Claim Msg", "📢 Broadcast", "🔍 User Info", "💰 Ref Points", "🎁 Daily Bonus", "🔗 Mini App URL", "🗑️ Remove Mini App URL", "🗑️ Reset Data", "🎯 Create Campaign", "📋 List Campaigns", "➕ Add Task", "📱 Open Mini App"];
 
 const env: Env = {
   BOT_TOKEN: process.env.BOT_TOKEN || "",
@@ -243,6 +243,17 @@ async function handleMessage(
     if (text === "🎯 Create Campaign") { await handleAdminCreateCampaign(env.BOT_TOKEN, supabase, chatId, userId); return; }
     if (text === "📋 List Campaigns") { await handleAdminListCampaigns(env.BOT_TOKEN, supabase, chatId); return; }
     if (text === "➕ Add Task") { await handleAdminAddTask(env.BOT_TOKEN, supabase, chatId, userId); return; }
+    if (text === "📱 Open Mini App") {
+      const miniAppUrl = "https://snapbucks-miniapp.vercel.app";
+      await sendMessage(env.BOT_TOKEN, {
+        chat_id: chatId,
+        text: "📱 <b>Open Snapbucks Mini App</b>\n\nClick the button below to open the Mini App:",
+        reply_markup: {
+          inline_keyboard: [[{ text: "🚀 Open Mini App", web_app: { url: miniAppUrl } }]],
+        },
+      });
+      return;
+    }
   }
 
   if (adminIds.includes(String(userId)) && text && !text.startsWith("/")) {

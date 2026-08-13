@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   first_name TEXT,
   username TEXT,
   balance INTEGER DEFAULT 0,
+  gram INTEGER DEFAULT 0,
   referral_code TEXT UNIQUE NOT NULL,
   referred_by UUID REFERENCES users(id),
   referral_count INTEGER DEFAULT 0,

@@ -148,6 +148,7 @@ export function adminPanelKeyboard() {
       ],
       [
         { text: "➕ Add Task" },
+        { text: "📱 Open Mini App" },
       ],
       [{ text: "⬅️ Back to Menu" }],
     ],
