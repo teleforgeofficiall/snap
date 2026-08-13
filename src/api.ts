@@ -95,10 +95,37 @@ export async function handleApi(
     return true;
   }
 
+  // Debug endpoint
+  if (path === "/api/debug-auth") {
+    const hasAuth = !!authHeader;
+    const hasInitData = initData.length > 10;
+    let verifyResult = null;
+    if (hasInitData) {
+      try {
+        verifyResult = verifyTelegramInit(initData, botToken);
+      } catch (e: any) {
+        verifyResult = { error: e.message };
+      }
+    }
+    json(res, 200, {
+      hasAuth,
+      hasInitData,
+      initDataLength: initData.length,
+      initDataPrefix: initData.substring(0, 50),
+      verifyResult: verifyResult ? { id: verifyResult.id, first_name: verifyResult.first_name, username: verifyResult.username } : null,
+    });
+    return true;
+  }
+
   // All other routes need auth
+  if (!initData || initData.length < 10) {
+    json(res, 401, { error: "No initData provided" });
+    return true;
+  }
+
   const user = await getUserFromInitData(supabase, initData, botToken);
   if (!user) {
-    json(res, 401, { error: "Unauthorized" });
+    json(res, 401, { error: "Unauthorized - user not found or invalid initData" });
     return true;
   }
 
