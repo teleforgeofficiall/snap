@@ -56,6 +56,10 @@ export async function getUserFromInitData(
 
   if (error || !user) return null;
   user.gram = 0;
+  // Pass Telegram user data for client display
+  user.photo_url = tgUser.photo_url || null;
+  if (!user.first_name && tgUser.first_name) user.first_name = tgUser.first_name;
+  if (!user.username && tgUser.username) user.username = tgUser.username;
   return user;
 }
 
@@ -118,6 +122,7 @@ export async function handleApi(
       eligible: user.eligible || false,
       created_at: user.created_at,
       rank: (higherCount || 0) + 1,
+      photo_url: user.photo_url || null,
     });
     return true;
   }
