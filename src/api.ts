@@ -98,6 +98,12 @@ export async function handleApi(
 
   // ============ USER ROUTES ============
   if (path === "/api/user/me" && method === "GET") {
+    // Calculate rank
+    const { count: higherCount } = await supabase
+      .from("users")
+      .select("*", { count: "exact", head: true })
+      .gt("balance", user.balance || 0);
+
     json(res, 200, {
       id: user.id,
       telegram_id: user.telegram_id,
@@ -109,6 +115,7 @@ export async function handleApi(
       referral_count: user.referral_count || 0,
       eligible: user.eligible || false,
       created_at: user.created_at,
+      rank: (higherCount || 0) + 1,
     });
     return true;
   }
