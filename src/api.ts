@@ -717,7 +717,7 @@ export async function handleApi(
       .from("users")
       .select("telegram_id, first_name, username, balance")
       .order("balance", { ascending: false })
-      .limit(100);
+      .limit(50);
 
     const ranked = users?.map((u: any, i: number) => ({
       rank: i + 1,
