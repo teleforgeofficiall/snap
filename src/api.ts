@@ -95,6 +95,11 @@ export async function handleApi(
     return true;
   }
 
+  // ============ ADMIN API ROUTES (password auth, no TG init needed) ============
+  if (path?.startsWith("/api/admin")) {
+    return await handleAdminApi(req, res, supabase, path, method);
+  }
+
   // All other routes need auth
   if (!initData || initData.length < 10) {
     json(res, 401, { error: "No initData provided" });
@@ -255,14 +260,20 @@ export async function handleApi(
       .select("task_id, status")
       .eq("user_id", user.id);
 
+    const { data: submissions } = await supabase
+      .from("task_submissions")
+      .select("task_id, status")
+      .eq("user_id", user.id);
+
     const completionMap: Record<string, string> = {};
-    completions?.forEach((c: any) => {
-      completionMap[c.task_id] = c.status;
-    });
+    completions?.forEach((c: any) => { completionMap[c.task_id] = c.status; });
+
+    const submissionMap: Record<string, string> = {};
+    submissions?.forEach((s: any) => { submissionMap[s.task_id] = s.status; });
 
     const tasksWithStatus = tasks?.map((t: any) => ({
       ...t,
-      user_status: completionMap[t.id] || "not_started",
+      user_status: completionMap[t.id] || submissionMap[t.id] || "not_started",
     })) || [];
 
     json(res, 200, { tasks: tasksWithStatus });
@@ -316,6 +327,19 @@ export async function handleApi(
         token: "SNAP",
         description: `Task completed`,
       });
+    } else {
+      await supabase
+        .from("users")
+        .update({ gram: (user.gram || 0) + task.reward_amount })
+        .eq("id", user.id);
+
+      await supabase.from("transactions").insert({
+        user_id: user.id,
+        type: "task_reward",
+        amount: task.reward_amount,
+        token: "GRAM",
+        description: `Task completed`,
+      });
     }
 
     json(res, 200, {
@@ -323,6 +347,46 @@ export async function handleApi(
       reward: task.reward_amount,
       token: task.reward_token,
     });
+    return true;
+  }
+
+  // --- Task submission (screenshots / fill info) ---
+  const submitMatch = path?.match(/^\/api\/tasks\/([a-f0-9-]+)\/submit$/);
+  if (submitMatch && method === "POST") {
+    const taskId = submitMatch[1];
+    const { data: existing } = await supabase.from("task_submissions").select("id, status").eq("user_id", user.id).eq("task_id", taskId).single();
+    if (existing && (existing.status === "pending" || existing.status === "approved")) {
+      json(res, 400, { error: "Already submitted" });
+      return true;
+    }
+    const { data: task } = await supabase.from("tasks").select("id, task_type").eq("id", taskId).single();
+    if (!task) { json(res, 404, { error: "Task not found" }); return true; }
+
+    const { data: sub, error: subErr } = await supabase.from("task_submissions").upsert({
+      task_id: taskId, user_id: user.id, status: "pending",
+      submitted_data: body.submitted_data || null,
+    }, { onConflict: "task_id,user_id" }).select("id").single();
+
+    if (subErr) { json(res, 400, { error: subErr.message }); return true; }
+
+    // Save submitted images
+    if (body.images && Array.isArray(body.images) && sub) {
+      const imageRows = body.images.map((url: string, i: number) => ({
+        submission_id: sub.id, image_url: url, image_type: "screenshot", sort_order: i,
+      }));
+      await supabase.from("task_submission_images").insert(imageRows);
+    }
+
+    json(res, 200, { success: true, status: "pending" });
+    return true;
+  }
+
+  // --- Get user's submission status for a task ---
+  const subStatusMatch = path?.match(/^\/api\/tasks\/([a-f0-9-]+)\/submission$/);
+  if (subStatusMatch && method === "GET") {
+    const taskId = subStatusMatch[1];
+    const { data: sub } = await supabase.from("task_submissions").select("id, status, admin_note, reviewed_at").eq("user_id", user.id).eq("task_id", taskId).single();
+    json(res, 200, { submission: sub || null });
     return true;
   }
 
@@ -788,6 +852,145 @@ export async function handleApi(
   }
 
   // 404
+  json(res, 404, { error: "Not found" });
+  return true;
+}
+
+// ============ ADMIN API HANDLER ============
+const ADMIN_PASSWORD = "snapbucks2026";
+const adminSessions = new Set<string>();
+
+async function handleAdminApi(
+  req: any, res: any, supabase: SupabaseClient, path: string, method: string
+): Promise<boolean> {
+  // CORS
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (method === "OPTIONS") { res.writeHead(200); res.end(); return true; }
+
+  // Login (no auth needed)
+  if (path === "/api/admin/login" && method === "POST") {
+    const body = await readBody(req);
+    if (body.password === ADMIN_PASSWORD) {
+      const token = crypto.randomBytes(32).toString("hex");
+      adminSessions.add(token);
+      json(res, 200, { success: true, token });
+    } else {
+      json(res, 401, { error: "Invalid password" });
+    }
+    return true;
+  }
+
+  // Auth check for all other admin routes
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.replace("Bearer ", "") || "";
+  if (!adminSessions.has(token)) {
+    json(res, 401, { error: "Unauthorized" });
+    return true;
+  }
+
+  const body = await readBody(req);
+
+  // --- Tasks CRUD ---
+  if (path === "/api/admin/tasks" && method === "GET") {
+    const { data: tasks } = await supabase.from("tasks").select("*").order("created_at", { ascending: false });
+    json(res, 200, { tasks: tasks || [] });
+    return true;
+  }
+
+  if (path === "/api/admin/tasks" && method === "POST") {
+    const { error } = await supabase.from("tasks").insert({
+      title: body.title, description: body.description, instructions: body.instructions,
+      task_type: body.task_type, reward_amount: body.reward_amount, reward_token: body.reward_token,
+      task_url: body.task_url, reference_image_url: body.reference_image_url,
+      required_screenshots: body.required_screenshots || 1, channel_username: body.channel_username,
+      custom_fields: body.custom_fields, is_active: body.is_active !== false,
+    });
+    if (error) { json(res, 400, { error: error.message }); } else { json(res, 200, { success: true }); }
+    return true;
+  }
+
+  const taskMatch = path?.match(/^\/api\/admin\/tasks\/([a-f0-9-]+)$/);
+  if (taskMatch) {
+    const taskId = taskMatch[1];
+    if (method === "PUT") {
+      const { error } = await supabase.from("tasks").update({
+        title: body.title, description: body.description, instructions: body.instructions,
+        task_type: body.task_type, reward_amount: body.reward_amount, reward_token: body.reward_token,
+        task_url: body.task_url, reference_image_url: body.reference_image_url,
+        required_screenshots: body.required_screenshots, channel_username: body.channel_username,
+        custom_fields: body.custom_fields, is_active: body.is_active,
+      }).eq("id", taskId);
+      if (error) { json(res, 400, { error: error.message }); } else { json(res, 200, { success: true }); }
+      return true;
+    }
+    if (method === "DELETE") {
+      await supabase.from("tasks").delete().eq("id", taskId);
+      json(res, 200, { success: true });
+      return true;
+    }
+  }
+
+  // --- Submissions ---
+  if (path === "/api/admin/submissions" && method === "GET") {
+    const statusFilter = new URL(req.url, "http://x").searchParams.get("status");
+    let query = supabase.from("task_submissions").select("*, tasks(title, task_type, reward_amount, reward_token), users(telegram_id, first_name, username)").order("created_at", { ascending: false });
+    if (statusFilter && statusFilter !== "all") query = query.eq("status", statusFilter);
+    const { data: subs } = await query;
+    // fetch images for each submission
+    const subIds = (subs || []).map((s: any) => s.id);
+    const { data: images } = await supabase.from("task_submission_images").select("*").in("submission_id", subIds);
+    const imageMap: Record<string, any[]> = {};
+    (images || []).forEach((img: any) => {
+      if (!imageMap[img.submission_id]) imageMap[img.submission_id] = [];
+      imageMap[img.submission_id].push(img);
+    });
+    const result = (subs || []).map((s: any) => ({ ...s, images: imageMap[s.id] || [] }));
+    json(res, 200, { submissions: result });
+    return true;
+  }
+
+  const subMatch = path?.match(/^\/api\/admin\/submissions\/([a-f0-9-]+)$/);
+  if (subMatch && method === "PUT") {
+    const subId = subMatch[1];
+    const { status, admin_note } = body;
+    await supabase.from("task_submissions").update({ status, admin_note, reviewed_at: new Date().toISOString() }).eq("id", subId);
+    // If approved, credit reward + create task_completion
+    if (status === "approved") {
+      const { data: sub } = await supabase.from("task_submissions").select("task_id, user_id").eq("id", subId).single();
+      if (sub) {
+        const { data: task } = await supabase.from("tasks").select("reward_amount, reward_token").eq("id", sub.task_id).single();
+        if (task) {
+          await supabase.from("task_completions").upsert({ user_id: sub.user_id, task_id: sub.task_id, status: "completed", completed_at: new Date().toISOString(), reward_earned: task.reward_amount });
+          if (task.reward_token === "SNAP") {
+            const { data: u } = await supabase.from("users").select("balance").eq("id", sub.user_id).single();
+            await supabase.from("users").update({ balance: (u?.balance || 0) + task.reward_amount }).eq("id", sub.user_id);
+            await supabase.from("transactions").insert({ user_id: sub.user_id, type: "task_reward", amount: task.reward_amount, token: "SNAP", description: `Task approved` });
+          } else {
+            const { data: u } = await supabase.from("users").select("gram").eq("id", sub.user_id).single();
+            await supabase.from("users").update({ gram: (u?.gram || 0) + task.reward_amount }).eq("id", sub.user_id);
+            await supabase.from("transactions").insert({ user_id: sub.user_id, type: "task_reward", amount: task.reward_amount, token: "GRAM", description: `Task approved` });
+          }
+        }
+      }
+    }
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // --- Stats ---
+  if (path === "/api/admin/stats" && method === "GET") {
+    const [{ count: totalTasks }, { count: pendingSubs }, { count: totalUsers }, { count: approvedToday }] = await Promise.all([
+      supabase.from("tasks").select("*", { count: "exact", head: true }),
+      supabase.from("task_submissions").select("*", { count: "exact", head: true }).eq("status", "pending"),
+      supabase.from("users").select("*", { count: "exact", head: true }),
+      supabase.from("task_submissions").select("*", { count: "exact", head: true }).eq("status", "approved").gte("reviewed_at", new Date().toISOString().split("T")[0]),
+    ]);
+    json(res, 200, { totalTasks: totalTasks || 0, pendingSubs: pendingSubs || 0, totalUsers: totalUsers || 0, approvedToday: approvedToday || 0 });
+    return true;
+  }
+
   json(res, 404, { error: "Not found" });
   return true;
 }

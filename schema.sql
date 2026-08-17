@@ -76,11 +76,39 @@ CREATE TABLE IF NOT EXISTS tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
+  instructions TEXT,
   task_type TEXT NOT NULL,
   reward_amount INTEGER DEFAULT 0,
   reward_token TEXT DEFAULT 'SNAP',
   task_url TEXT,
+  reference_image_url TEXT,
+  required_screenshots INTEGER DEFAULT 1,
+  channel_username TEXT,
+  custom_fields JSONB,
   is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Task submissions (user proof/data)
+CREATE TABLE IF NOT EXISTS task_submissions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  task_id UUID REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'pending',
+  submitted_data JSONB,
+  admin_note TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(task_id, user_id)
+);
+
+-- Task submission images
+CREATE TABLE IF NOT EXISTS task_submission_images (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  submission_id UUID REFERENCES task_submissions(id) ON DELETE CASCADE,
+  image_url TEXT NOT NULL,
+  image_type TEXT DEFAULT 'screenshot',
+  sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -217,3 +245,9 @@ CREATE INDEX IF NOT EXISTS idx_spins_date ON spins(spin_date);
 CREATE INDEX IF NOT EXISTS idx_raffles_status ON raffles(status);
 CREATE INDEX IF NOT EXISTS idx_raffle_boxes_raffle ON raffle_boxes(raffle_id);
 CREATE INDEX IF NOT EXISTS idx_raffle_entries_user ON raffle_entries(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_submissions_user ON task_submissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_submissions_status ON task_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_task_submission_images_submission ON task_submission_images(submission_id);
+
+-- Storage bucket for task images
+INSERT INTO storage.buckets (id, name, public) VALUES ('task-images', 'task-images', true) ON CONFLICT (id) DO NOTHING;
