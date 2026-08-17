@@ -883,14 +883,6 @@ async function handleAdminApi(
     return true;
   }
 
-  // Auth check for all other admin routes
-  const authHeader = req.headers.authorization;
-  const token = authHeader?.replace("Bearer ", "") || "";
-  if (!adminSessions.has(token)) {
-    json(res, 401, { error: "Unauthorized" });
-    return true;
-  }
-
   const body = await readBody(req);
 
   // --- Tasks CRUD ---
