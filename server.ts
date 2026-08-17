@@ -46,7 +46,7 @@ import { getSetting } from "./src/utils";
 import { handleApi } from "./src/api";
 
 const USER_MENU_BUTTONS = ["💵 Wallet", "👥 Refer", "🏆 Leaderboard", "ℹ️ About", "💸 Withdraw", "⬅️ Back to Menu"];
-const ADMIN_MENU_BUTTONS = ["📊 Stats", "📢 Add Channel", "🗑️ Remove Channel", "📋 List Channels", "📝 Claim Msg", "📢 Broadcast", "🔍 User Info", "💰 Ref Points", "🎁 Daily Bonus", "🔗 Mini App URL", "🗑️ Remove Mini App URL", "🗑️ Reset Data", "🎯 Create Campaign", "📋 List Campaigns", "➕ Add Task", "📱 Open Mini App"];
+const ADMIN_MENU_BUTTONS = ["📊 Stats", "📢 Add Channel", "🗑️ Remove Channel", "📋 List Channels", "📝 Claim Msg", "📢 Broadcast", "🔍 User Info", "💰 Ref Points", "🎁 Daily Bonus", "🔗 Mini App URL", "🗑️ Remove Mini App URL", "🗑️ Reset Data", "🎯 Create Campaign", "📋 List Campaigns", "➕ Add Task", "📱 Open Mini App", "🌐 Web Admin"];
 
 const env: Env = {
   BOT_TOKEN: process.env.BOT_TOKEN || "",
@@ -250,6 +250,17 @@ async function handleMessage(
         text: "📱 <b>Open Snapbucks Mini App</b>\n\nClick the button below to open the Mini App:",
         reply_markup: {
           inline_keyboard: [[{ text: "🚀 Open Mini App", web_app: { url: miniAppUrl } }]],
+        },
+      });
+      return;
+    }
+    if (text === "🌐 Web Admin") {
+      const adminUrl = "https://admin-panel-eta-lake.vercel.app";
+      await sendMessage(env.BOT_TOKEN, {
+        chat_id: chatId,
+        text: "🌐 <b>Open Snapbucks Admin Panel</b>\n\nClick the button below to open the Admin Panel:",
+        reply_markup: {
+          inline_keyboard: [[{ text: "🚀 Open Admin Panel", web_app: { url: adminUrl } }]],
         },
       });
       return;
