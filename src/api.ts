@@ -50,12 +50,11 @@ export async function getUserFromInitData(
 
   const { data: user, error } = await supabase
     .from("users")
-    .select("id, telegram_id, first_name, username, balance, referral_code, referred_by, referral_count, daily_claim_date, is_admin, eligible, created_at")
+    .select("id, telegram_id, first_name, username, balance, gram, referral_code, referred_by, referral_count, daily_claim_date, is_admin, eligible, created_at")
     .eq("telegram_id", tgUser.id)
     .single();
 
   if (error || !user) return null;
-  user.gram = 0;
   // Pass Telegram user data for client display
   user.photo_url = tgUser.photo_url || null;
   if (!user.first_name && tgUser.first_name) user.first_name = tgUser.first_name;
@@ -292,6 +291,18 @@ export async function handleApi(
 
     if (existing && existing.status === "completed") {
       json(res, 400, { error: "Task already completed" });
+      return true;
+    }
+
+    const { data: existingSub } = await supabase
+      .from("task_submissions")
+      .select("id, status")
+      .eq("user_id", user.id)
+      .eq("task_id", taskId)
+      .single();
+
+    if (existingSub) {
+      json(res, 400, { error: "Task already submitted" });
       return true;
     }
 
