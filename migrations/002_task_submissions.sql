@@ -40,11 +40,23 @@ CREATE INDEX IF NOT EXISTS idx_task_submission_images_submission ON task_submiss
 INSERT INTO storage.buckets (id, name, public) VALUES ('task-images', 'task-images', true) ON CONFLICT (id) DO NOTHING;
 
 -- 6. Storage policies
-CREATE POLICY IF NOT EXISTS "Public read task images" ON storage.objects
-  FOR SELECT TO public USING (bucket_id = 'task-images');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Public read task images' AND tablename = 'objects') THEN
+    CREATE POLICY "Public read task images" ON storage.objects
+      FOR SELECT TO public USING (bucket_id = 'task-images');
+  END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Authenticated upload task images" ON storage.objects
-  FOR INSERT TO authenticated WITH CHECK (bucket_id = 'task-images');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated upload task images' AND tablename = 'objects') THEN
+    CREATE POLICY "Authenticated upload task images" ON storage.objects
+      FOR INSERT TO authenticated WITH CHECK (bucket_id = 'task-images');
+  END IF;
+END $$;
 
-CREATE POLICY IF NOT EXISTS "Authenticated delete task images" ON storage.objects
-  FOR DELETE TO authenticated USING (bucket_id = 'task-images');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated delete task images' AND tablename = 'objects') THEN
+    CREATE POLICY "Authenticated delete task images" ON storage.objects
+      FOR DELETE TO authenticated USING (bucket_id = 'task-images');
+  END IF;
+END $$;

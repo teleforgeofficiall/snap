@@ -354,6 +354,7 @@ export async function handleApi(
   const submitMatch = path?.match(/^\/api\/tasks\/([a-f0-9-]+)\/submit$/);
   if (submitMatch && method === "POST") {
     const taskId = submitMatch[1];
+    const body = await readBody(req);
     const { data: existing } = await supabase.from("task_submissions").select("id, status").eq("user_id", user.id).eq("task_id", taskId).single();
     if (existing && (existing.status === "pending" || existing.status === "approved")) {
       json(res, 400, { error: "Already submitted" });
