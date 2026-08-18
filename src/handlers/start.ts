@@ -159,15 +159,14 @@ export async function handleVerifyContinue(
         .single();
 
       if (referrer) {
-        const perRefStr = await getSetting(supabase, "per_referral_points");
+        const perRefStr = await getSetting(supabase, "snap_per_refer");
         const perRef = parseInt(perRefStr || "100");
         const newUsername = user.username ? `@${user.username}` : user.first_name;
         const newReferralCount = referrer.referral_count + 1;
 
-        // Credit referrer: update referral_count, balance, and eligible flag
+        // Credit referrer: update referral_count and eligible flag
         const updateData: any = {
           referral_count: newReferralCount,
-          balance: referrer.balance + perRef,
         };
 
         // Mark eligible if 5+ referrals
@@ -180,10 +179,16 @@ export async function handleVerifyContinue(
           .update(updateData)
           .eq("id", referrer.id);
 
-        // Notify referrer: user verified, SNAP credited
+        // Grant spins to referrer
+        const { grantReferrerSpins } = require("../utils");
+        await grantReferrerSpins(supabase, referrer.id, user.id || "");
+
+        // Notify referrer: user verified
+        const spinsPerRefer = parseInt(await getSetting(supabase, "ref_spins_per_refer") || "5");
+        const commPct = parseFloat(await getSetting(supabase, "ref_commission_percent") || "10");
         await sendMessage(token, {
           chat_id: referrer.telegram_id,
-          text: `🎉 <b>Referral Complete!</b>\n\n<b>${newUsername}</b> joined the channel and verified!\n\nYou earned <b>${perRef} SNAP</b>! 🪙`,
+          text: `🎉 <b>Referral Complete!</b>\n\n<b>${newUsername}</b> joined and verified!\n\n🎰 You earned <b>${spinsPerRefer} Free Spins</b>!\n💰 You'll earn <b>${commPct}% lifetime commission</b> on their earnings!`,
         });
       }
     }

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { SupabaseClient } from "@supabase/supabase-js";
+import { creditReferrerCommission } from "./utils";
 
 // Verify Telegram WebApp initData
 export function verifyTelegramInit(initData: string, botToken: string): any {
@@ -338,6 +339,8 @@ export async function handleApi(
         token: "SNAP",
         description: `Task completed`,
       });
+
+      creditReferrerCommission(supabase, user.id, task.reward_amount, "snap");
     } else {
       await supabase
         .from("users")
@@ -351,6 +354,8 @@ export async function handleApi(
         token: "GRAM",
         description: `Task completed`,
       });
+
+      creditReferrerCommission(supabase, user.id, task.reward_amount, "gram");
     }
 
     json(res, 200, {
@@ -575,11 +580,13 @@ export async function handleApi(
         .from("users")
         .update({ balance: (user.balance || 0) + task.reward_amount })
         .eq("id", user.id);
+      creditReferrerCommission(supabase, user.id, task.reward_amount, "snap");
     } else {
       await supabase
         .from("users")
         .update({ gram: (user.gram || 0) + task.reward_amount })
         .eq("id", user.id);
+      creditReferrerCommission(supabase, user.id, task.reward_amount, "gram");
     }
 
     await supabase.from("transactions").insert({
@@ -686,6 +693,8 @@ export async function handleApi(
       token: "SNAP",
       description: "Lucky Spin",
     });
+
+    creditReferrerCommission(supabase, user.id, reward, "snap");
 
     const newSpinsToday = (spinsToday || 0) + 1;
 
@@ -835,11 +844,13 @@ export async function handleApi(
         .from("users")
         .update({ balance: (user.balance || 0) + box.reward_amount })
         .eq("id", user.id);
+      creditReferrerCommission(supabase, user.id, box.reward_amount, "snap");
     } else {
       await supabase
         .from("users")
         .update({ gram: (user.gram || 0) + box.reward_amount })
         .eq("id", user.id);
+      creditReferrerCommission(supabase, user.id, box.reward_amount, "gram");
     }
 
     await supabase.from("transactions").insert({
@@ -889,12 +900,36 @@ export async function handleApi(
       .eq("referrer_id", user.id)
       .order("created_at", { ascending: false });
 
+    const totalSnapEarned = (referrals || []).reduce(
+      (sum: number, r: any) => sum + (r.snap_earned || 0), 0
+    );
+    const totalSpinsEarned = (referrals || []).reduce(
+      (sum: number, r: any) => sum + (r.spins_granted || 0), 0
+    );
+
+    const spinsPerRefer = parseInt(await getSetting(supabase, "ref_spins_per_refer") || "5");
+    const commissionPercent = parseFloat(await getSetting(supabase, "ref_commission_percent") || "10");
+
     json(res, 200, {
       referral_code: user.referral_code,
       referral_link: `https://t.me/SnapbucksAirdrop_Bot?start=${user.referral_code}`,
       total_referrals: user.referral_count || 0,
+      total_snap_earned: totalSnapEarned,
+      total_spins_earned: totalSpinsEarned,
       referrals: referrals || [],
+      settings: {
+        spins_per_refer: spinsPerRefer,
+        commission_percent: commissionPercent,
+      },
     });
+    return true;
+  }
+
+  // Public referral settings for Mini App display
+  if (path === "/api/referral-settings" && method === "GET") {
+    const spinsPerRefer = parseInt(await getSetting(supabase, "ref_spins_per_refer") || "5");
+    const commissionPercent = parseFloat(await getSetting(supabase, "ref_commission_percent") || "10");
+    json(res, 200, { spins_per_refer: spinsPerRefer, commission_percent: commissionPercent });
     return true;
   }
 
@@ -1019,10 +1054,12 @@ async function handleAdminApi(
             const { data: u } = await supabase.from("users").select("balance").eq("id", sub.user_id).single();
             await supabase.from("users").update({ balance: (u?.balance || 0) + task.reward_amount }).eq("id", sub.user_id);
             await supabase.from("transactions").insert({ user_id: sub.user_id, type: "task_reward", amount: task.reward_amount, token: "SNAP", description: `Task approved` });
+            creditReferrerCommission(supabase, sub.user_id, task.reward_amount, "snap");
           } else {
             const { data: u } = await supabase.from("users").select("gram").eq("id", sub.user_id).single();
             await supabase.from("users").update({ gram: (u?.gram || 0) + task.reward_amount }).eq("id", sub.user_id);
             await supabase.from("transactions").insert({ user_id: sub.user_id, type: "task_reward", amount: task.reward_amount, token: "GRAM", description: `Task approved` });
+            creditReferrerCommission(supabase, sub.user_id, task.reward_amount, "gram");
           }
         }
       }
@@ -1072,6 +1109,50 @@ async function handleAdminApi(
       return true;
     }
     json(res, 200, { success: true, saved: settings });
+    return true;
+  }
+
+  // ============ ADMIN REFERRAL SETTINGS ============
+  if (path === "/api/admin/referral-settings" && method === "GET") {
+    const spinsPerRefer = parseInt(await getSetting(supabase, "ref_spins_per_refer") || "5");
+    const commissionPercent = parseFloat(await getSetting(supabase, "ref_commission_percent") || "10");
+    const snapPerRefer = parseInt(await getSetting(supabase, "snap_per_refer") || "100");
+    json(res, 200, {
+      spins_per_refer: spinsPerRefer,
+      commission_percent: commissionPercent,
+      snap_per_refer: snapPerRefer,
+    });
+    return true;
+  }
+
+  if (path === "/api/admin/referral-settings" && method === "POST") {
+    const spinsPerRefer = parseInt(body.spins_per_refer);
+    const commissionPercent = parseFloat(body.commission_percent);
+    const snapPerRefer = parseInt(body.snap_per_refer);
+
+    if (isNaN(spinsPerRefer) || spinsPerRefer < 0) {
+      json(res, 400, { error: "Spins per refer must be a non-negative number" });
+      return true;
+    }
+    if (isNaN(commissionPercent) || commissionPercent < 0 || commissionPercent > 100) {
+      json(res, 400, { error: "Commission percent must be 0-100" });
+      return true;
+    }
+
+    await setSetting(supabase, "ref_spins_per_refer", String(spinsPerRefer));
+    await setSetting(supabase, "ref_commission_percent", String(commissionPercent));
+    if (!isNaN(snapPerRefer) && snapPerRefer >= 0) {
+      await setSetting(supabase, "snap_per_refer", String(snapPerRefer));
+    }
+
+    json(res, 200, {
+      success: true,
+      saved: {
+        spins_per_refer: spinsPerRefer,
+        commission_percent: commissionPercent,
+        snap_per_refer: snapPerRefer,
+      },
+    });
     return true;
   }
 
