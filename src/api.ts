@@ -698,6 +698,22 @@ export async function handleApi(
     return true;
   }
 
+  if (path === "/api/spin/history" && method === "GET") {
+    const { data: spins } = await supabase
+      .from("spins")
+      .select("reward_earned, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    const history = (spins || []).map(s => ({
+      name: "You",
+      amount: s.reward_earned,
+      time: timeAgo(s.created_at),
+    }));
+    json(res, 200, { history });
+    return true;
+  }
+
   // ============ RAFFLE ROUTES ============
   if (path === "/api/raffle/current" && method === "GET") {
     const { data: raffle } = await supabase
@@ -1083,4 +1099,14 @@ function readBody(req: any): Promise<any> {
       }
     });
   });
+}
+
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diff = Math.floor((now - then) / 1000);
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  return Math.floor(diff / 86400) + "d ago";
 }
