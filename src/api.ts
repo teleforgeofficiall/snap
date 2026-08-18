@@ -1036,24 +1036,27 @@ async function handleAdminApi(
 
   if (path === "/api/admin/spin-settings" && method === "POST") {
     const body = await readBody(req);
-    const { error } = await supabase
+    const maxSpins = parseInt(body.max_spins_per_day);
+    const settings = {
+      id: 1,
+      max_spins_per_day: isNaN(maxSpins) ? 3 : maxSpins,
+      slot_1: parseInt(body.slot_1) || 250,
+      slot_2: parseInt(body.slot_2) || 500,
+      slot_3: parseInt(body.slot_3) || 1000,
+      slot_4: parseInt(body.slot_4) || 250,
+      slot_5: parseInt(body.slot_5) || 100,
+      slot_6: parseInt(body.slot_6) || 50,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
       .from("spin_settings")
-      .upsert({
-        id: 1,
-        max_spins_per_day: body.max_spins_per_day ?? 3,
-        slot_1: body.slot_1 ?? 250,
-        slot_2: body.slot_2 ?? 500,
-        slot_3: body.slot_3 ?? 1000,
-        slot_4: body.slot_4 ?? 250,
-        slot_5: body.slot_5 ?? 100,
-        slot_6: body.slot_6 ?? 50,
-        updated_at: new Date().toISOString(),
-      });
+      .upsert(settings)
+      .select();
     if (error) {
       json(res, 500, { error: error.message });
       return true;
     }
-    json(res, 200, { success: true });
+    json(res, 200, { success: true, saved: settings });
     return true;
   }
 
