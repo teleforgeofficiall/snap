@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { creditReferrerCommission } from "./utils";
+import { creditReferrerCommission, getSetting, setSetting } from "./utils";
 
 // Verify Telegram WebApp initData
 export function verifyTelegramInit(initData: string, botToken: string): any {
