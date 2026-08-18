@@ -933,6 +933,21 @@ export async function handleApi(
     return true;
   }
 
+  // ============ SOCIAL LINKS (public) ============
+  if (path === "/api/social-links" && method === "GET") {
+    const twitter = await getSetting(supabase, "social_twitter");
+    const discord = await getSetting(supabase, "social_discord");
+    const instagram = await getSetting(supabase, "social_instagram");
+    const support = await getSetting(supabase, "support_url");
+    json(res, 200, {
+      twitter: twitter || "",
+      discord: discord || "",
+      instagram: instagram || "",
+      support_url: support || "",
+    });
+    return true;
+  }
+
   // ============ TRANSACTIONS ROUTES ============
   if (path === "/api/transactions" && method === "GET") {
     const { data: txs } = await supabase
@@ -1153,6 +1168,30 @@ async function handleAdminApi(
         snap_per_refer: snapPerRefer,
       },
     });
+    return true;
+  }
+
+  // ============ ADMIN SOCIAL LINKS ============
+  if (path === "/api/admin/social-links" && method === "GET") {
+    const twitter = await getSetting(supabase, "social_twitter");
+    const discord = await getSetting(supabase, "social_discord");
+    const instagram = await getSetting(supabase, "social_instagram");
+    const support = await getSetting(supabase, "support_url");
+    json(res, 200, {
+      twitter: twitter || "",
+      discord: discord || "",
+      instagram: instagram || "",
+      support_url: support || "",
+    });
+    return true;
+  }
+
+  if (path === "/api/admin/social-links" && method === "POST") {
+    if (body.twitter !== undefined) await setSetting(supabase, "social_twitter", String(body.twitter));
+    if (body.discord !== undefined) await setSetting(supabase, "social_discord", String(body.discord));
+    if (body.instagram !== undefined) await setSetting(supabase, "social_instagram", String(body.instagram));
+    if (body.support_url !== undefined) await setSetting(supabase, "support_url", String(body.support_url));
+    json(res, 200, { success: true });
     return true;
   }
 
