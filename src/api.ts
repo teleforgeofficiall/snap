@@ -1139,11 +1139,11 @@ async function handleAdminApi(
       return true;
     }
 
+    const safeSnap = isNaN(snapPerRefer) ? 100 : snapPerRefer;
+
     await setSetting(supabase, "ref_spins_per_refer", String(spinsPerRefer));
     await setSetting(supabase, "ref_commission_percent", String(commissionPercent));
-    if (!isNaN(snapPerRefer) && snapPerRefer >= 0) {
-      await setSetting(supabase, "snap_per_refer", String(snapPerRefer));
-    }
+    await setSetting(supabase, "snap_per_refer", String(safeSnap));
 
     json(res, 200, {
       success: true,
