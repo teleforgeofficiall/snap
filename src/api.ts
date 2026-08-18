@@ -599,8 +599,30 @@ export async function handleApi(
   }
 
   // ============ SPIN ROUTES ============
+  if (path === "/api/spin/settings" && method === "GET") {
+    const { data: settings } = await supabase
+      .from("spin_settings")
+      .select("*")
+      .eq("id", 1)
+      .single();
+    json(res, 200, settings || { max_spins_per_day: 3, slot_1: 250, slot_2: 500, slot_3: 1000, slot_4: 250, slot_5: 100, slot_6: 50 });
+    return true;
+  }
+
   if (path === "/api/spin/info" && method === "GET") {
     const today = new Date().toISOString().split("T")[0];
+
+    const { data: settings } = await supabase
+      .from("spin_settings")
+      .select("max_spins_per_day, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6")
+      .eq("id", 1)
+      .single();
+
+    const maxSpins = settings?.max_spins_per_day || 3;
+    const rewards = [
+      settings?.slot_1 || 250, settings?.slot_2 || 500, settings?.slot_3 || 1000,
+      settings?.slot_4 || 250, settings?.slot_5 || 100, settings?.slot_6 || 50
+    ];
 
     const { count: spinsToday } = await supabase
       .from("spins")
@@ -608,13 +630,12 @@ export async function handleApi(
       .eq("user_id", user.id)
       .eq("spin_date", today);
 
-    const maxSpins = 3;
     const remaining = Math.max(0, maxSpins - (spinsToday || 0));
 
     json(res, 200, {
       remaining,
       max_spins: maxSpins,
-      rewards: [250, 500, 1000, 250, 100],
+      rewards,
     });
     return true;
   }
@@ -622,18 +643,29 @@ export async function handleApi(
   if (path === "/api/spin/execute" && method === "POST") {
     const today = new Date().toISOString().split("T")[0];
 
+    const { data: settings } = await supabase
+      .from("spin_settings")
+      .select("max_spins_per_day, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6")
+      .eq("id", 1)
+      .single();
+
+    const maxSpins = settings?.max_spins_per_day || 3;
+    const rewards = [
+      settings?.slot_1 || 250, settings?.slot_2 || 500, settings?.slot_3 || 1000,
+      settings?.slot_4 || 250, settings?.slot_5 || 100, settings?.slot_6 || 50
+    ];
+
     const { count: spinsToday } = await supabase
       .from("spins")
       .select("*", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("spin_date", today);
 
-    if ((spinsToday || 0) >= 3) {
+    if ((spinsToday || 0) >= maxSpins) {
       json(res, 400, { error: "No spins remaining today" });
       return true;
     }
 
-    const rewards = [250, 500, 1000, 250, 100];
     const reward = rewards[Math.floor(Math.random() * rewards.length)];
 
     await supabase.from("spins").insert({
@@ -660,7 +692,7 @@ export async function handleApi(
     json(res, 200, {
       success: true,
       reward,
-      remaining: Math.max(0, 3 - newSpinsToday),
+      remaining: Math.max(0, maxSpins - newSpinsToday),
       new_balance: (user.balance || 0) + reward,
     });
     return true;
@@ -992,6 +1024,36 @@ async function handleAdminApi(
       supabase.from("task_submissions").select("*", { count: "exact", head: true }).eq("status", "approved").gte("reviewed_at", new Date().toISOString().split("T")[0]),
     ]);
     json(res, 200, { totalTasks: totalTasks || 0, pendingSubs: pendingSubs || 0, totalUsers: totalUsers || 0, approvedToday: approvedToday || 0 });
+    return true;
+  }
+
+  // ============ ADMIN SPIN SETTINGS ============
+  if (path === "/api/admin/spin-settings" && method === "GET") {
+    const { data: settings } = await supabase.from("spin_settings").select("*").eq("id", 1).single();
+    json(res, 200, settings || {});
+    return true;
+  }
+
+  if (path === "/api/admin/spin-settings" && method === "POST") {
+    const body = await readBody(req);
+    const { error } = await supabase
+      .from("spin_settings")
+      .upsert({
+        id: 1,
+        max_spins_per_day: body.max_spins_per_day ?? 3,
+        slot_1: body.slot_1 ?? 250,
+        slot_2: body.slot_2 ?? 500,
+        slot_3: body.slot_3 ?? 1000,
+        slot_4: body.slot_4 ?? 250,
+        slot_5: body.slot_5 ?? 100,
+        slot_6: body.slot_6 ?? 50,
+        updated_at: new Date().toISOString(),
+      });
+    if (error) {
+      json(res, 500, { error: error.message });
+      return true;
+    }
+    json(res, 200, { success: true });
     return true;
   }
 
