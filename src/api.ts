@@ -1051,7 +1051,6 @@ async function handleAdminApi(
   }
 
   if (path === "/api/admin/spin-settings" && method === "POST") {
-    const body = await readBody(req);
     const maxSpins = parseInt(body.max_spins_per_day);
     const settings = {
       id: 1,
