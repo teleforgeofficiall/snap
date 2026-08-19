@@ -890,13 +890,15 @@ export async function handleApi(
           .eq("id", user.id);
         creditReferrerCommission(supabase, user.id, rewardPerBox, "gram");
       }
-      await supabase.from("transactions").insert({
-        user_id: user.id,
-        type: "raffle_reward",
-        amount: rewardPerBox,
-        token: rewardToken,
-        description: "Raffle box unlocked",
-      });
+      try {
+        await supabase.from("transactions").insert({
+          user_id: user.id,
+          type: "raffle_reward",
+          amount: rewardPerBox,
+          token: rewardToken,
+          description: "Raffle box unlocked",
+        });
+      } catch (e) {}
     }
 
     json(res, 200, {
@@ -1278,7 +1280,7 @@ async function handleAdminApi(
   }
 
   if (path === "/api/admin/raffle-config" && method === "POST") {
-    const { title, description, prize_pool, reward_per_box, reward_token, ad_zone_id, end_date, create_new } = body;
+    const { title, description, prize_pool, reward_per_box, winner_prize, reward_token, ad_zone_id, end_date, draw_frequency, create_new } = body;
 
     if (ad_zone_id !== undefined) await setSetting(supabase, "adsgram_block_id", String(ad_zone_id));
 
@@ -1292,6 +1294,8 @@ async function handleAdminApi(
           prize_pool: prize_pool || 0,
           reward_token: reward_token || "SNAP",
           reward_per_box: reward_per_box || 5,
+          winner_prize: winner_prize || 0,
+          draw_frequency: draw_frequency || "one-time",
           ad_zone_id: ad_zone_id || "",
           status: "active",
           start_date: new Date().toISOString(),
@@ -1313,18 +1317,17 @@ async function handleAdminApi(
       .single();
 
     if (existing) {
-      await supabase
-        .from("raffles")
-        .update({
-          title: title || undefined,
-          description: description || undefined,
-          prize_pool: prize_pool || undefined,
-          reward_per_box: reward_per_box !== undefined ? reward_per_box : undefined,
-          reward_token: reward_token || undefined,
-          ad_zone_id: ad_zone_id || undefined,
-          end_date: end_date || undefined,
-        })
-        .eq("id", existing.id);
+      const updateData: any = {};
+      if (title) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (prize_pool !== undefined) updateData.prize_pool = prize_pool;
+      if (reward_per_box !== undefined) updateData.reward_per_box = reward_per_box;
+      if (winner_prize !== undefined) updateData.winner_prize = winner_prize;
+      if (draw_frequency) updateData.draw_frequency = draw_frequency;
+      if (reward_token) updateData.reward_token = reward_token;
+      if (ad_zone_id) updateData.ad_zone_id = ad_zone_id;
+      if (end_date) updateData.end_date = end_date;
+      await supabase.from("raffles").update(updateData).eq("id", existing.id);
     }
 
     json(res, 200, { success: true });
@@ -1350,7 +1353,7 @@ async function handleAdminApi(
 
     const { data: allEntries } = await supabase
       .from("raffle_entries")
-      .select("*, users(telegram_id, first_name)")
+      .select("*, users(telegram_id, first_name, balance)")
       .eq("raffle_id", raffle.id);
 
     if (!allEntries || allEntries.length === 0) {
@@ -1377,16 +1380,36 @@ async function handleAdminApi(
       winner = allEntries[0];
     }
 
+    // Credit winner prize
+    const winnerPrize = raffle.winner_prize || 0;
+    const winnerData = winner?.users as any;
+    if (winnerPrize > 0 && winner?.user_id) {
+      const currentBalance = winnerData?.balance || 0;
+      await supabase
+        .from("users")
+        .update({ balance: currentBalance + winnerPrize })
+        .eq("id", winner.user_id);
+      try {
+        await supabase.from("transactions").insert({
+          user_id: winner.user_id,
+          type: "raffle_prize",
+          amount: winnerPrize,
+          token: "SNAP",
+          description: `Won ${raffle.title}`,
+        });
+      } catch (e) {}
+      creditReferrerCommission(supabase, winner.user_id, winnerPrize, "snap");
+    }
+
     await supabase
       .from("raffles")
       .update({ status: "completed" })
       .eq("id", raffle.id);
 
-    const winnerData = winner?.users as any;
+    // Send winner message
     if (winnerData?.telegram_id) {
       try {
         const tgBotToken = process.env.BOT_TOKEN || "";
-        const chatId = winnerData.telegram_id;
         const miniAppUrl = await getSetting(supabase, "mini_app_url");
         const buttons: any[][] = [];
         if (miniAppUrl) {
@@ -1396,14 +1419,15 @@ async function handleAdminApi(
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chat_id: chatId,
-            text: `🎉 Congratulations, ${winnerData.first_name || "User"}!\n\nYou won the ${raffle.title}!\n\nPrize: ${raffle.prize_pool || "Special Reward"}\nBoxes opened: ${totalBoxes}/${totalBoxes}\nLuck: ${winner.total_luck || 100}%\n\nYour reward has been credited!`,
+            chat_id: winnerData.telegram_id,
+            text: `🎉 Congratulations, ${winnerData.first_name || "User"}!\n\nYou won the ${raffle.title}!\n\nPrize: ${winnerPrize} SNAP\nBoxes opened: ${totalBoxes}/${totalBoxes}\nLuck: ${winner.total_luck || 100}%\n\nYour reward has been credited to your balance!`,
             reply_markup: buttons.length ? { inline_keyboard: buttons } : undefined,
           }),
         });
       } catch (e) {}
     }
 
+    // Send loser messages
     for (const entry of allEntries) {
       if (entry.user_id === winner?.user_id) continue;
       const entryUser = entry.users as any;
@@ -1422,12 +1446,33 @@ async function handleAdminApi(
       }
     }
 
+    // Auto-create next raffle if weekly
+    if (raffle.draw_frequency === "weekly") {
+      const nextEnd = new Date();
+      nextEnd.setDate(nextEnd.getDate() + 7);
+      await supabase.from("raffles").insert({
+        title: raffle.title,
+        description: raffle.description,
+        total_boxes: 8,
+        prize_pool: raffle.prize_pool,
+        reward_token: raffle.reward_token,
+        reward_per_box: raffle.reward_per_box,
+        winner_prize: raffle.winner_prize,
+        draw_frequency: "weekly",
+        ad_zone_id: raffle.ad_zone_id,
+        status: "active",
+        start_date: new Date().toISOString(),
+        end_date: nextEnd.toISOString(),
+      });
+    }
+
     json(res, 200, {
       success: true,
       winner: {
         user_id: winner?.user_id,
         name: winnerData?.first_name || "Unknown",
         luck: winner?.total_luck || 0,
+        prize: winnerPrize,
       },
       total_participants: allEntries.length,
     });
