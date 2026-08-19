@@ -95,6 +95,17 @@ export async function handleApi(
     return true;
   }
 
+  // Public: Checkin rewards config (no user auth needed)
+  if (path === "/api/checkin/rewards" && method === "GET") {
+    const days: number[] = [];
+    for (let i = 1; i <= 7; i++) {
+      const val = await getSetting(supabase, `checkin_day_${i}`);
+      days.push(parseInt(val || "10"));
+    }
+    json(res, 200, { days });
+    return true;
+  }
+
   // ============ ADMIN API ROUTES (password auth, no TG init needed) ============
   if (path?.startsWith("/api/admin")) {
     return await handleAdminApi(req, res, supabase, path, method);
@@ -245,17 +256,6 @@ export async function handleApi(
       new_balance: (user.balance || 0) + reward,
       next_claim_at: nextClaimAt,
     });
-    return true;
-  }
-
-  // ============ CHECKIN REWARDS (public) ============
-  if (path === "/api/checkin/rewards" && method === "GET") {
-    const days: number[] = [];
-    for (let i = 1; i <= 7; i++) {
-      const val = await getSetting(supabase, `checkin_day_${i}`);
-      days.push(parseInt(val || "10"));
-    }
-    json(res, 200, { days });
     return true;
   }
 
