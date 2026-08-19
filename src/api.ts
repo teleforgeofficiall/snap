@@ -95,7 +95,7 @@ export async function handleApi(
     return true;
   }
 
-  // Public: Checkin rewards config (no user auth needed)
+  // Public: Checkin rewards config
   if (path === "/api/checkin/rewards" && method === "GET") {
     const days: number[] = [];
     for (let i = 1; i <= 7; i++) {
@@ -103,6 +103,13 @@ export async function handleApi(
       days.push(parseInt(val || "10"));
     }
     json(res, 200, { days });
+    return true;
+  }
+
+  // Public: Ads config (for Mini App to know AdsGram zone)
+  if (path === "/api/ads/config" && method === "GET") {
+    const blockId = await getSetting(supabase, "adsgram_block_id");
+    json(res, 200, { block_id: blockId || "" });
     return true;
   }
 
@@ -752,7 +759,7 @@ export async function handleApi(
 
     const { data: entry } = await supabase
       .from("raffle_entries")
-      .select("*")
+      .select("*, raffle_box_numbers(box_number, number_value)")
       .eq("user_id", user.id)
       .eq("raffle_id", raffle.id)
       .single();
@@ -762,11 +769,22 @@ export async function handleApi(
       .select("*", { count: "exact", head: true })
       .eq("raffle_id", raffle.id);
 
+    const boxNumbers = entry?.raffle_box_numbers || [];
+    const userBoxes = boxNumbers.map((b: any) => b.box_number);
+
     json(res, 200, {
       raffle: {
-        ...raffle,
-        user_boxes_unlocked: entry?.boxes_unlocked || 0,
-        user_win_rate: entry?.win_rate || 0,
+        id: raffle.id,
+        title: raffle.title,
+        description: raffle.description,
+        total_boxes: raffle.total_boxes || 8,
+        reward_per_box: raffle.reward_per_box || 5,
+        reward_token: raffle.reward_token || "SNAP",
+        prize_pool: raffle.prize_pool,
+        end_date: raffle.end_date,
+        user_boxes_opened: userBoxes,
+        user_box_numbers: boxNumbers.reduce((acc: any, b: any) => { acc[b.box_number] = b.number_value; return acc; }, {}),
+        user_luck: entry?.total_luck || 0,
         total_participants: totalEntries || 0,
       },
     });
@@ -781,104 +799,114 @@ export async function handleApi(
       json(res, 400, { error: "Missing raffle_id or box_number" });
       return true;
     }
-
-    const { data: box } = await supabase
-      .from("raffle_boxes")
-      .select("*")
-      .eq("raffle_id", raffle_id)
-      .eq("box_number", box_number)
-      .single();
-
-    if (!box) {
-      json(res, 404, { error: "Box not found" });
+    if (box_number < 1 || box_number > 8) {
+      json(res, 400, { error: "Box number must be 1-8" });
       return true;
     }
 
-    if (box.is_unlocked) {
+    const { data: raffle } = await supabase
+      .from("raffles")
+      .select("*")
+      .eq("id", raffle_id)
+      .eq("status", "active")
+      .single();
+
+    if (!raffle) {
+      json(res, 404, { error: "Active raffle not found" });
+      return true;
+    }
+
+    if (raffle.end_date && new Date(raffle.end_date) < new Date()) {
+      json(res, 400, { error: "Raffle has ended" });
+      return true;
+    }
+
+    const { data: existing } = await supabase
+      .from("raffle_box_numbers")
+      .select("id")
+      .eq("raffle_id", raffle_id)
+      .eq("user_id", user.id)
+      .eq("box_number", box_number)
+      .single();
+
+    if (existing) {
       json(res, 400, { error: "Box already unlocked" });
       return true;
     }
 
-    await supabase
-      .from("raffle_boxes")
-      .update({
-        is_unlocked: true,
-        unlocked_by: user.id,
-        unlocked_at: new Date().toISOString(),
-      })
-      .eq("id", box.id);
+    const numberValue = Math.floor(Math.random() * 100);
+
+    await supabase.from("raffle_box_numbers").insert({
+      raffle_id,
+      user_id: user.id,
+      box_number,
+      number_value: numberValue,
+    });
+
+    const { data: allBoxes } = await supabase
+      .from("raffle_box_numbers")
+      .select("box_number")
+      .eq("raffle_id", raffle_id)
+      .eq("user_id", user.id);
+
+    const totalBoxes = raffle.total_boxes || 8;
+    const boxesOpened = (allBoxes || []).map((b: any) => b.box_number);
+    const luck = (boxesOpened.length / totalBoxes) * 100;
 
     let { data: entry } = await supabase
       .from("raffle_entries")
-      .select("*")
+      .select("id")
       .eq("user_id", user.id)
       .eq("raffle_id", raffle_id)
       .single();
 
     if (!entry) {
-      const { data: newEntry } = await supabase
-        .from("raffle_entries")
-        .insert({
-          user_id: user.id,
-          raffle_id,
-          boxes_unlocked: 1,
-          win_rate: 5,
-        })
-        .select()
-        .single();
-      entry = newEntry;
+      await supabase.from("raffle_entries").insert({
+        user_id: user.id,
+        raffle_id,
+        boxes_opened: boxesOpened,
+        total_luck: luck,
+      });
     } else {
-      const newUnlocked = (entry.boxes_unlocked || 0) + 1;
-      const { data: raffle } = await supabase
-        .from("raffles")
-        .select("total_boxes")
-        .eq("id", raffle_id)
-        .single();
-      const totalBoxes = raffle?.total_boxes || 20;
-      const newWinRate = (newUnlocked / totalBoxes) * 100;
-
       await supabase
         .from("raffle_entries")
-        .update({
-          boxes_unlocked: newUnlocked,
-          win_rate: newWinRate,
-        })
+        .update({ boxes_opened: boxesOpened, total_luck: luck })
         .eq("id", entry.id);
-
-      entry.boxes_unlocked = newUnlocked;
-      entry.win_rate = newWinRate;
     }
 
-    // Credit reward to user balance
-    const rewardToken = box.reward_token || "GRAM";
-    if (rewardToken === "SNAP") {
-      await supabase
-        .from("users")
-        .update({ balance: (user.balance || 0) + box.reward_amount })
-        .eq("id", user.id);
-      creditReferrerCommission(supabase, user.id, box.reward_amount, "snap");
-    } else {
-      await supabase
-        .from("users")
-        .update({ gram: (user.gram || 0) + box.reward_amount })
-        .eq("id", user.id);
-      creditReferrerCommission(supabase, user.id, box.reward_amount, "gram");
+    const rewardPerBox = raffle.reward_per_box || 5;
+    const rewardToken = raffle.reward_token || "SNAP";
+    if (rewardPerBox > 0) {
+      if (rewardToken === "SNAP") {
+        await supabase
+          .from("users")
+          .update({ balance: (user.balance || 0) + rewardPerBox })
+          .eq("id", user.id);
+        creditReferrerCommission(supabase, user.id, rewardPerBox, "snap");
+      } else {
+        await supabase
+          .from("users")
+          .update({ gram: (user.gram || 0) + rewardPerBox })
+          .eq("id", user.id);
+        creditReferrerCommission(supabase, user.id, rewardPerBox, "gram");
+      }
+      await supabase.from("transactions").insert({
+        user_id: user.id,
+        type: "raffle_reward",
+        amount: rewardPerBox,
+        token: rewardToken,
+        description: "Raffle box unlocked",
+      });
     }
-
-    await supabase.from("transactions").insert({
-      user_id: user.id,
-      type: "raffle_reward",
-      amount: box.reward_amount,
-      token: rewardToken,
-      description: "Raffle box unlocked",
-    });
 
     json(res, 200, {
       success: true,
-      reward: box.reward_amount,
-      token: box.reward_token || "GRAM",
-      boxes_unlocked: entry.boxes_unlocked,
-      win_rate: entry.win_rate,
+      number: numberValue,
+      reward: rewardPerBox,
+      token: rewardToken,
+      boxes_opened: boxesOpened.length,
+      total_boxes: totalBoxes,
+      luck,
     });
     return true;
   }
@@ -1228,6 +1256,181 @@ async function handleAdminApi(
       }
     }
     json(res, 200, { success: true });
+    return true;
+  }
+
+  // --- Raffle Config ---
+  if (path === "/api/admin/raffle-config" && method === "GET") {
+    const { data: raffle } = await supabase
+      .from("raffles")
+      .select("*")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    const adsZone = await getSetting(supabase, "adsgram_block_id");
+    json(res, 200, {
+      raffle: raffle || null,
+      ads_zone_id: adsZone || "",
+    });
+    return true;
+  }
+
+  if (path === "/api/admin/raffle-config" && method === "POST") {
+    const { title, description, prize_pool, reward_per_box, reward_token, ad_zone_id, end_date, create_new } = body;
+
+    if (ad_zone_id !== undefined) await setSetting(supabase, "adsgram_block_id", String(ad_zone_id));
+
+    if (create_new) {
+      const { data: newRaffle } = await supabase
+        .from("raffles")
+        .insert({
+          title: title || "Lucky Raffle",
+          description: description || "",
+          total_boxes: 8,
+          prize_pool: prize_pool || 0,
+          reward_token: reward_token || "SNAP",
+          reward_per_box: reward_per_box || 5,
+          ad_zone_id: ad_zone_id || "",
+          status: "active",
+          start_date: new Date().toISOString(),
+          end_date: end_date || null,
+        })
+        .select()
+        .single();
+
+      json(res, 200, { success: true, raffle: newRaffle });
+      return true;
+    }
+
+    const { data: existing } = await supabase
+      .from("raffles")
+      .select("id")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existing) {
+      await supabase
+        .from("raffles")
+        .update({
+          title: title || undefined,
+          description: description || undefined,
+          prize_pool: prize_pool || undefined,
+          reward_per_box: reward_per_box !== undefined ? reward_per_box : undefined,
+          reward_token: reward_token || undefined,
+          ad_zone_id: ad_zone_id || undefined,
+          end_date: end_date || undefined,
+        })
+        .eq("id", existing.id);
+    }
+
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // --- Raffle Draw (pick winner) ---
+  if (path === "/api/admin/raffle-draw" && method === "POST") {
+    const { data: raffle } = await supabase
+      .from("raffles")
+      .select("*")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!raffle) {
+      json(res, 400, { error: "No active raffle" });
+      return true;
+    }
+
+    const totalBoxes = raffle.total_boxes || 8;
+
+    const { data: allEntries } = await supabase
+      .from("raffle_entries")
+      .select("*, users(telegram_id, first_name)")
+      .eq("raffle_id", raffle.id);
+
+    if (!allEntries || allEntries.length === 0) {
+      json(res, 400, { error: "No participants" });
+      return true;
+    }
+
+    const fullBoxEntries = allEntries.filter((e: any) => {
+      const opened = Array.isArray(e.boxes_opened) ? e.boxes_opened.length : 0;
+      return opened >= totalBoxes;
+    });
+
+    let winner;
+    if (fullBoxEntries.length > 0) {
+      fullBoxEntries.sort((a: any, b: any) => (b.total_luck || 0) - (a.total_luck || 0));
+      winner = fullBoxEntries[0];
+    } else {
+      allEntries.sort((a: any, b: any) => {
+        const aOpened = Array.isArray(a.boxes_opened) ? a.boxes_opened.length : 0;
+        const bOpened = Array.isArray(b.boxes_opened) ? b.boxes_opened.length : 0;
+        if (bOpened !== aOpened) return bOpened - aOpened;
+        return (b.total_luck || 0) - (a.total_luck || 0);
+      });
+      winner = allEntries[0];
+    }
+
+    await supabase
+      .from("raffles")
+      .update({ status: "completed" })
+      .eq("id", raffle.id);
+
+    const winnerData = winner?.users as any;
+    if (winnerData?.telegram_id) {
+      try {
+        const tgBotToken = process.env.BOT_TOKEN || "";
+        const chatId = winnerData.telegram_id;
+        const miniAppUrl = await getSetting(supabase, "mini_app_url");
+        const buttons: any[][] = [];
+        if (miniAppUrl) {
+          buttons.push([{ text: "🎉 Open Mini App", web_app: { url: miniAppUrl } }]);
+        }
+        await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: `🎉 Congratulations, ${winnerData.first_name || "User"}!\n\nYou won the ${raffle.title}!\n\nPrize: ${raffle.prize_pool || "Special Reward"}\nBoxes opened: ${totalBoxes}/${totalBoxes}\nLuck: ${winner.total_luck || 100}%\n\nYour reward has been credited!`,
+            reply_markup: buttons.length ? { inline_keyboard: buttons } : undefined,
+          }),
+        });
+      } catch (e) {}
+    }
+
+    for (const entry of allEntries) {
+      if (entry.user_id === winner?.user_id) continue;
+      const entryUser = entry.users as any;
+      if (entryUser?.telegram_id) {
+        try {
+          const tgBotToken = process.env.BOT_TOKEN || "";
+          await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: entryUser.telegram_id,
+              text: `Better luck next time! 🍀\n\nThe ${raffle.title} draw has ended.\nYour luck was ${entry.total_luck || 0}%\n\nNext raffle starts soon — keep unlocking boxes!`,
+            }),
+          });
+        } catch (e) {}
+      }
+    }
+
+    json(res, 200, {
+      success: true,
+      winner: {
+        user_id: winner?.user_id,
+        name: winnerData?.first_name || "Unknown",
+        luck: winner?.total_luck || 0,
+      },
+      total_participants: allEntries.length,
+    });
     return true;
   }
 
