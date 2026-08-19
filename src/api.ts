@@ -212,8 +212,9 @@ export async function handleApi(
       .eq("user_id", user.id);
 
     const streak = (totalCheckins || 0) + 1;
-    const rewards = [10, 15, 20, 25, 30, 35, 50];
-    const reward = rewards[Math.min(streak - 1, rewards.length - 1)];
+    const dayIdx = Math.min(streak, 7);
+    const rewardStr = await getSetting(supabase, `checkin_day_${dayIdx}`);
+    const reward = parseInt(rewardStr || "10");
 
     await supabase.from("checkins").insert({
       user_id: user.id,
@@ -244,6 +245,17 @@ export async function handleApi(
       new_balance: (user.balance || 0) + reward,
       next_claim_at: nextClaimAt,
     });
+    return true;
+  }
+
+  // ============ CHECKIN REWARDS (public) ============
+  if (path === "/api/checkin/rewards" && method === "GET") {
+    const days: number[] = [];
+    for (let i = 1; i <= 7; i++) {
+      const val = await getSetting(supabase, `checkin_day_${i}`);
+      days.push(parseInt(val || "10"));
+    }
+    json(res, 200, { days });
     return true;
   }
 
@@ -1191,6 +1203,30 @@ async function handleAdminApi(
     if (body.discord !== undefined) await setSetting(supabase, "social_discord", String(body.discord));
     if (body.instagram !== undefined) await setSetting(supabase, "social_instagram", String(body.instagram));
     if (body.support_url !== undefined) await setSetting(supabase, "support_url", String(body.support_url));
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // --- Checkin Settings ---
+  if (path === "/api/admin/checkin-settings" && method === "GET") {
+    const days: Record<string, string> = {};
+    for (let i = 1; i <= 7; i++) {
+      days[`checkin_day_${i}`] = await getSetting(supabase, `checkin_day_${i}`) || "10";
+    }
+    json(res, 200, { days });
+    return true;
+  }
+
+  if (path === "/api/admin/checkin-settings" && method === "POST") {
+    for (let i = 1; i <= 7; i++) {
+      const key = `checkin_day_${i}`;
+      if (body[key] !== undefined) {
+        const val = parseInt(body[key]);
+        if (!isNaN(val) && val >= 0) {
+          await setSetting(supabase, key, String(val));
+        }
+      }
+    }
     json(res, 200, { success: true });
     return true;
   }
