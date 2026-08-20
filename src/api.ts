@@ -1003,6 +1003,71 @@ export async function handleApi(
     return true;
   }
 
+  // ============ WALLET — WITHDRAW ============
+  if (path === "/api/wallet/withdraw" && method === "POST") {
+    const body = await readBody(req);
+    const { amount, address } = body;
+
+    if (!amount || amount < 50) return json(res, 400, { error: "Minimum withdrawal is 50 Gram" });
+    if (!address || address.length < 10) return json(res, 400, { error: "Invalid Gram address" });
+    if ((user.gram || 0) < amount) return json(res, 400, { error: "Insufficient Gram balance" });
+
+    const { data: pending } = await supabase
+      .from("wallet_requests")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .limit(1);
+
+    if (pending && pending.length > 0) {
+      return json(res, 400, { error: "You already have a pending request" });
+    }
+
+    const newGram = (user.gram || 0) - amount;
+    await supabase.from("users").update({ gram: newGram }).eq("id", user.id);
+
+    const { data: wr, error } = await supabase
+      .from("wallet_requests")
+      .insert({
+        user_id: user.id,
+        amount,
+        token: "gram",
+        address,
+        status: "pending",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      await supabase.from("users").update({ gram: user.gram || 0 }).eq("id", user.id);
+      return json(res, 500, { error: "Failed to create request" });
+    }
+
+    await supabase.from("transactions").insert({
+      user_id: user.id,
+      type: "withdraw_request",
+      amount: -amount,
+      token: "gram",
+      description: `Withdraw ${amount} Gram to ${address.slice(0, 10)}...`,
+    });
+
+    json(res, 200, { success: true, request: wr });
+    return true;
+  }
+
+  // ============ WALLET — MY REQUESTS ============
+  if (path === "/api/wallet/requests" && method === "GET") {
+    const { data: requests } = await supabase
+      .from("wallet_requests")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    json(res, 200, { requests: requests || [] });
+    return true;
+  }
+
   // 404
   json(res, 404, { error: "Not found" });
   return true;
@@ -1476,6 +1541,73 @@ async function handleAdminApi(
       },
       total_participants: allEntries.length,
     });
+    return true;
+  }
+
+  // ============ ADMIN — WALLET REQUESTS LIST ============
+  if (path === "/api/admin/wallet-requests" && method === "GET") {
+    const url = new URL(req.url || "", `http://${req.headers.host}`);
+    const status = url.searchParams.get("status") || "pending";
+
+    const { data: requests } = await supabase
+      .from("wallet_requests")
+      .select("*, users(telegram_id, first_name, username)")
+      .eq("status", status)
+      .order("created_at", { ascending: false });
+
+    json(res, 200, { requests: requests || [] });
+    return true;
+  }
+
+  // ============ ADMIN — WALLET REQUEST REVIEW ============
+  if (path.startsWith("/api/admin/wallet-requests/") && path.endsWith("/review") && method === "POST") {
+    const requestId = path.split("/")[4];
+    const body = await readBody(req);
+    const { action, note } = body;
+
+    if (!["approved", "rejected"].includes(action)) {
+      return json(res, 400, { error: "Invalid action" });
+    }
+
+    const { data: wr, error: fetchErr } = await supabase
+      .from("wallet_requests")
+      .select("*, users(id, gram, telegram_id, first_name)")
+      .eq("id", requestId)
+      .single();
+
+    if (fetchErr || !wr) return json(res, 404, { error: "Request not found" });
+    if (wr.status !== "pending") return json(res, 400, { error: "Request already reviewed" });
+
+    await supabase
+      .from("wallet_requests")
+      .update({ status: action, admin_note: note || null, reviewed_at: new Date().toISOString() })
+      .eq("id", requestId);
+
+    if (action === "rejected") {
+      const newGram = (wr.users.gram || 0) + wr.amount;
+      await supabase.from("users").update({ gram: newGram }).eq("id", wr.user_id);
+
+      await supabase.from("transactions").insert({
+        user_id: wr.user_id,
+        type: "withdraw_refund",
+        amount: wr.amount,
+        token: "gram",
+        description: `Withdrawal rejected — ${wr.amount} Gram refunded`,
+      });
+    }
+
+    try {
+      const msg = action === "approved"
+        ? `✅ Your withdrawal of ${wr.amount} Gram has been approved!`
+        : `❌ Your withdrawal of ${wr.amount} Gram has been rejected.${note ? `\nReason: ${note}` : ""}`;
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: wr.users.telegram_id, text: msg }),
+      });
+    } catch (e) { /* non-blocking */ }
+
+    json(res, 200, { success: true });
     return true;
   }
 

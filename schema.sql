@@ -251,3 +251,19 @@ CREATE INDEX IF NOT EXISTS idx_task_submission_images_submission ON task_submiss
 
 -- Storage bucket for task images
 INSERT INTO storage.buckets (id, name, public) VALUES ('task-images', 'task-images', true) ON CONFLICT (id) DO NOTHING;
+
+-- Wallet Withdraw Requests
+CREATE TABLE IF NOT EXISTS wallet_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  amount INTEGER NOT NULL,
+  token TEXT NOT NULL DEFAULT 'gram',
+  address TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  admin_note TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  reviewed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_wallet_requests_user ON wallet_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_requests_status ON wallet_requests(status);
