@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   total_budget NUMERIC DEFAULT 0,
   budget_spent NUMERIC DEFAULT 0,
   ad_status TEXT DEFAULT 'draft',
+  task_logo_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

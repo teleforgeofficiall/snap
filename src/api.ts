@@ -95,6 +95,40 @@ export async function handleApi(
     return true;
   }
 
+  // Public: Upload image to Supabase Storage
+  if (path === "/api/upload/image" && method === "POST") {
+    const body = await readBody(req);
+    const { image, filename } = body;
+    if (!image) return json(res, 400, { error: "No image data" });
+
+    const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+    const ext = filename?.split(".").pop() || "png";
+    const safeName = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const uploadRes = await fetch(
+      `https://xqixkprkyfgpqaqmxmab.supabase.co/storage/v1/object/task-images/${safeName}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": `image/${ext === "jpg" ? "jpeg" : ext}`,
+          "Authorization": `Bearer ${process.env.SUPABASE_KEY || ""}`,
+          "apikey": process.env.SUPABASE_KEY || "",
+        },
+        body: buffer,
+      }
+    );
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      return json(res, 500, { error: "Upload failed: " + errText });
+    }
+
+    const publicUrl = `https://xqixkprkyfgpqaqmxmab.supabase.co/storage/v1/object/public/task-images/${safeName}`;
+    json(res, 200, { url: publicUrl });
+    return true;
+  }
+
   // Public: Checkin rewards config
   if (path === "/api/checkin/rewards" && method === "GET") {
     const days: number[] = [];
@@ -435,6 +469,94 @@ export async function handleApi(
     const taskId = subStatusMatch[1];
     const { data: sub } = await supabase.from("task_submissions").select("id, status, admin_note, reviewed_at").eq("user_id", user.id).eq("task_id", taskId).single();
     json(res, 200, { submission: sub || null });
+    return true;
+  }
+
+  // --- Verify Telegram Channel Join ---
+  const verifyJoinMatch = path?.match(/^\/api\/tasks\/([a-f0-9-]+)\/verify-join$/);
+  if (verifyJoinMatch && method === "POST") {
+    const taskId = verifyJoinMatch[1];
+
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("id, task_type, channel_username, reward_amount, reward_token")
+      .eq("id", taskId)
+      .single();
+
+    if (!task) return json(res, 404, { error: "Task not found" });
+    if (task.task_type !== "join_channel") return json(res, 400, { error: "Not a channel task" });
+    if (!task.channel_username) return json(res, 400, { error: "No channel configured" });
+
+    // Check if already completed
+    const { data: existing } = await supabase
+      .from("task_completions")
+      .select("id, status")
+      .eq("user_id", user.id)
+      .eq("task_id", taskId)
+      .single();
+    if (existing && existing.status === "completed") {
+      return json(res, 400, { error: "Already completed" });
+    }
+
+    // Check membership via Telegram API
+    const channel = task.channel_username.replace("@", "").replace("https://t.me/", "").replace("http://t.me/", "").replace("t.me/", "");
+    const memberRes = await fetch(
+      `https://api.telegram.org/bot${botToken}/getChatMember`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: "@" + channel, user_id: user.telegram_id }),
+      }
+    );
+    const memberData = await memberRes.json();
+
+    if (!memberData.ok) {
+      return json(res, 400, { error: "Cannot verify membership. Make sure the bot is admin in the channel." });
+    }
+
+    const status = memberData.result?.status;
+    const isMember = ["member", "administrator", "creator"].includes(status);
+
+    if (!isMember) {
+      return json(res, 400, { error: "You have not joined this channel yet. Please join and try again." });
+    }
+
+    // Credit reward
+    await supabase.from("task_completions").upsert({
+      user_id: user.id,
+      task_id: taskId,
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      reward_earned: task.reward_amount,
+    }, { onConflict: "user_id,task_id" });
+
+    if (task.reward_token === "SNAP") {
+      await supabase.from("users").update({ balance: (user.balance || 0) + task.reward_amount }).eq("id", user.id);
+    } else {
+      await supabase.from("users").update({ gram: (user.gram || 0) + task.reward_amount }).eq("id", user.id);
+    }
+
+    await supabase.from("transactions").insert({
+      user_id: user.id,
+      type: "task_reward",
+      amount: task.reward_amount,
+      token: task.reward_token,
+      description: `Channel join verified`,
+    });
+
+    // Auto-pause ad task if target reached
+    {
+      const { data: fullTask } = await supabase.from("tasks").select("target_completions, current_completions, ad_status").eq("id", taskId).single();
+      if (fullTask && fullTask.target_completions > 0) {
+        const newCount = (fullTask.current_completions || 0) + 1;
+        await supabase.from("tasks").update({ current_completions: newCount }).eq("id", taskId);
+        if (newCount >= fullTask.target_completions && fullTask.ad_status === "active") {
+          await supabase.from("tasks").update({ is_active: false, ad_status: "paused" }).eq("id", taskId);
+        }
+      }
+    }
+
+    json(res, 200, { success: true, reward: task.reward_amount, token: task.reward_token });
     return true;
   }
 
@@ -1098,7 +1220,7 @@ export async function handleApi(
   // POST /api/advertise/tasks — Create ad task
   if (path === "/api/advertise/tasks" && method === "POST") {
     const body = await readBody(req);
-    const { title, description, task_type, reward_amount, target_completions, task_url, channel_username, custom_fields, required_screenshots, reference_image_url, instructions } = body;
+    const { title, description, task_type, reward_amount, target_completions, task_url, channel_username, custom_fields, required_screenshots, reference_image_url, instructions, task_logo_url } = body;
 
     if (!title || !task_type) return json(res, 400, { error: "Title and task type required" });
     if (!target_completions || target_completions < 1000) return json(res, 400, { error: "Minimum 1000 target completions" });
@@ -1113,6 +1235,7 @@ export async function handleApi(
       reward_amount: reward_amount || 0, reward_token: "SNAP",
       task_url, reference_image_url, required_screenshots: required_screenshots || 1,
       channel_username, custom_fields,
+      task_logo_url: task_logo_url || null,
       is_active: false,
       advertiser_id: user.id,
       target_completions,
@@ -1270,6 +1393,7 @@ async function handleAdminApi(
       task_url: body.task_url, reference_image_url: body.reference_image_url,
       required_screenshots: body.required_screenshots || 1, channel_username: body.channel_username,
       custom_fields: body.custom_fields, is_active: body.is_active !== false,
+      task_logo_url: body.task_logo_url || null,
     });
     if (error) { json(res, 400, { error: error.message }); } else { json(res, 200, { success: true }); }
     return true;
@@ -1285,6 +1409,7 @@ async function handleAdminApi(
         task_url: body.task_url, reference_image_url: body.reference_image_url,
         required_screenshots: body.required_screenshots, channel_username: body.channel_username,
         custom_fields: body.custom_fields, is_active: body.is_active,
+        task_logo_url: body.task_logo_url || null,
       }).eq("id", taskId);
       if (error) { json(res, 400, { error: error.message }); } else { json(res, 200, { success: true }); }
       return true;
