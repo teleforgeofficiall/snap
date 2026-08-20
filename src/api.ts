@@ -1080,6 +1080,149 @@ export async function handleApi(
     return true;
   }
 
+  // ============ ADVERTISE ROUTES ============
+
+  // GET /api/advertise/tasks — List user's ad tasks
+  if (path === "/api/advertise/tasks" && method === "GET") {
+    const { data: tasks } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("advertiser_id", user.id)
+      .order("created_at", { ascending: false });
+
+    const pricePer1k = parseFloat(await getSetting(supabase, "ad_price_per_1k") || "50");
+    json(res, 200, { tasks: tasks || [], price_per_1k: pricePer1k });
+    return true;
+  }
+
+  // POST /api/advertise/tasks — Create ad task
+  if (path === "/api/advertise/tasks" && method === "POST") {
+    const body = await readBody(req);
+    const { title, description, task_type, reward_amount, target_completions, task_url, channel_username, custom_fields, required_screenshots, reference_image_url, instructions } = body;
+
+    if (!title || !task_type) return json(res, 400, { error: "Title and task type required" });
+    if (!target_completions || target_completions < 1000) return json(res, 400, { error: "Minimum 1000 target completions" });
+
+    const pricePer1k = parseFloat(await getSetting(supabase, "ad_price_per_1k") || "50");
+    const adFee = Math.ceil((target_completions / 1000) * pricePer1k);
+    const rewardCost = (reward_amount || 0) * target_completions;
+    const totalDeposit = adFee + rewardCost;
+
+    const { data: task, error } = await supabase.from("tasks").insert({
+      title, description, instructions, task_type,
+      reward_amount: reward_amount || 0, reward_token: "SNAP",
+      task_url, reference_image_url, required_screenshots: required_screenshots || 1,
+      channel_username, custom_fields,
+      is_active: false,
+      advertiser_id: user.id,
+      target_completions,
+      ad_fee: adFee,
+      total_budget: totalDeposit,
+      ad_status: "pending_deposit",
+    }).select().single();
+
+    if (error) return json(res, 400, { error: error.message });
+    json(res, 200, { success: true, task, total_deposit: totalDeposit, ad_fee: adFee, reward_cost: rewardCost });
+    return true;
+  }
+
+  // PUT /api/advertise/tasks/:id — Edit ad task (only draft/pending_deposit)
+  if (path?.match(/^\/api\/advertise\/tasks\/[a-f0-9-]+$/) && method === "PUT") {
+    const taskId = path.split("/")[4];
+    const body = await readBody(req);
+
+    const { data: existing } = await supabase.from("tasks").select("advertiser_id, ad_status").eq("id", taskId).single();
+    if (!existing || existing.advertiser_id !== user.id) return json(res, 404, { error: "Not found" });
+    if (!["draft", "pending_deposit"].includes(existing.ad_status)) return json(res, 400, { error: "Cannot edit this task" });
+
+    const { title, description, task_type, reward_amount, target_completions, task_url, channel_username, custom_fields, required_screenshots, reference_image_url, instructions } = body;
+    const pricePer1k = parseFloat(await getSetting(supabase, "ad_price_per_1k") || "50");
+    const adFee = Math.ceil(((target_completions || 1000) / 1000) * pricePer1k);
+    const rewardCost = (reward_amount || 0) * (target_completions || 1000);
+    const totalDeposit = adFee + rewardCost;
+
+    const { error } = await supabase.from("tasks").update({
+      title, description, instructions, task_type,
+      reward_amount: reward_amount || 0, reward_token: "SNAP",
+      task_url, reference_image_url, required_screenshots: required_screenshots || 1,
+      channel_username, custom_fields,
+      target_completions: target_completions || 1000,
+      ad_fee: adFee, total_budget: totalDeposit,
+    }).eq("id", taskId);
+
+    if (error) return json(res, 400, { error: error.message });
+    json(res, 200, { success: true, total_deposit: totalDeposit });
+    return true;
+  }
+
+  // DELETE /api/advertise/tasks/:id — Delete ad task
+  if (path?.match(/^\/api\/advertise\/tasks\/[a-f0-9-]+$/) && method === "DELETE") {
+    const taskId = path.split("/")[4];
+    const { data: existing } = await supabase.from("tasks").select("advertiser_id, ad_status").eq("id", taskId).single();
+    if (!existing || existing.advertiser_id !== user.id) return json(res, 404, { error: "Not found" });
+    if (!["draft", "pending_deposit"].includes(existing.ad_status)) return json(res, 400, { error: "Cannot delete this task" });
+
+    await supabase.from("tasks").update({ is_active: false, ad_status: "deleted" }).eq("id", taskId);
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // POST /api/advertise/deposit — Submit deposit request
+  if (path === "/api/advertise/deposit" && method === "POST") {
+    const body = await readBody(req);
+    const { task_id, amount, address } = body;
+
+    if (!task_id || !amount || !address) return json(res, 400, { error: "Missing fields" });
+    if (amount <= 0) return json(res, 400, { error: "Invalid amount" });
+
+    const { data: task } = await supabase.from("tasks").select("id, advertiser_id, ad_status, total_budget").eq("id", task_id).single();
+    if (!task || task.advertiser_id !== user.id) return json(res, 404, { error: "Task not found" });
+
+    const { data: pending } = await supabase.from("ad_deposits").select("id").eq("user_id", user.id).eq("status", "pending").limit(1);
+    if (pending && pending.length > 0) return json(res, 400, { error: "You already have a pending deposit" });
+
+    const { data: deposit, error } = await supabase.from("ad_deposits").insert({
+      user_id: user.id, task_id, amount, address, status: "pending",
+    }).select().single();
+
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, { success: true, deposit });
+    return true;
+  }
+
+  // GET /api/advertise/deposits — List user's deposit history
+  if (path === "/api/advertise/deposits" && method === "GET") {
+    const { data: deposits } = await supabase
+      .from("ad_deposits")
+      .select("*, tasks(title)")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    json(res, 200, { deposits: deposits || [] });
+    return true;
+  }
+
+  // POST /api/advertise/tasks/:id/resume — Resume paused task by depositing more
+  if (path?.match(/^\/api\/advertise\/tasks\/[a-f0-9-]+\/resume$/) && method === "POST") {
+    const taskId = path.split("/")[4];
+    const body = await readBody(req);
+    const { amount, address } = body;
+
+    const { data: task } = await supabase.from("tasks").select("advertiser_id, ad_status").eq("id", taskId).single();
+    if (!task || task.advertiser_id !== user.id) return json(res, 404, { error: "Not found" });
+    if (task.ad_status !== "paused") return json(res, 400, { error: "Task is not paused" });
+
+    const { data: pending } = await supabase.from("ad_deposits").select("id").eq("user_id", user.id).eq("status", "pending").limit(1);
+    if (pending && pending.length > 0) return json(res, 400, { error: "You already have a pending deposit" });
+
+    const { data: deposit, error } = await supabase.from("ad_deposits").insert({
+      user_id: user.id, task_id: taskId, amount, address, status: "pending",
+    }).select().single();
+
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, { success: true, deposit });
+    return true;
+  }
+
   // 404
   json(res, 404, { error: "Not found" });
   return true;
@@ -1632,149 +1775,6 @@ async function handleAdminApi(
     } catch (e) { /* non-blocking */ }
 
     json(res, 200, { success: true });
-    return true;
-  }
-
-  // ============ ADVERTISE ROUTES ============
-
-  // GET /api/advertise/tasks — List user's ad tasks
-  if (path === "/api/advertise/tasks" && method === "GET") {
-    const { data: tasks } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("advertiser_id", user.id)
-      .order("created_at", { ascending: false });
-
-    const pricePer1k = parseFloat(await getSetting(supabase, "ad_price_per_1k") || "50");
-    json(res, 200, { tasks: tasks || [], price_per_1k: pricePer1k });
-    return true;
-  }
-
-  // POST /api/advertise/tasks — Create ad task
-  if (path === "/api/advertise/tasks" && method === "POST") {
-    const body = await readBody(req);
-    const { title, description, task_type, reward_amount, reward_token, target_completions, task_url, channel_username, custom_fields, required_screenshots, reference_image_url, instructions } = body;
-
-    if (!title || !task_type) return json(res, 400, { error: "Title and task type required" });
-    if (!target_completions || target_completions < 1000) return json(res, 400, { error: "Minimum 1000 target completions" });
-
-    const pricePer1k = parseFloat(await getSetting(supabase, "ad_price_per_1k") || "50");
-    const adFee = Math.ceil((target_completions / 1000) * pricePer1k);
-    const rewardCost = (reward_amount || 0) * target_completions;
-    const totalDeposit = adFee + rewardCost;
-
-    const { data: task, error } = await supabase.from("tasks").insert({
-      title, description, instructions, task_type,
-      reward_amount: reward_amount || 0, reward_token: reward_token || "SNAP",
-      task_url, reference_image_url, required_screenshots: required_screenshots || 1,
-      channel_username, custom_fields,
-      is_active: false,
-      advertiser_id: user.id,
-      target_completions,
-      ad_fee: adFee,
-      total_budget: totalDeposit,
-      ad_status: "pending_deposit",
-    }).select().single();
-
-    if (error) return json(res, 400, { error: error.message });
-    json(res, 200, { success: true, task, total_deposit: totalDeposit, ad_fee: adFee, reward_cost: rewardCost });
-    return true;
-  }
-
-  // PUT /api/advertise/tasks/:id — Edit ad task (only draft/pending_deposit)
-  if (path?.match(/^\/api\/advertise\/tasks\/[a-f0-9-]+$/) && method === "PUT") {
-    const taskId = path.split("/")[4];
-    const body = await readBody(req);
-
-    const { data: existing } = await supabase.from("tasks").select("advertiser_id, ad_status").eq("id", taskId).single();
-    if (!existing || existing.advertiser_id !== user.id) return json(res, 404, { error: "Not found" });
-    if (!["draft", "pending_deposit"].includes(existing.ad_status)) return json(res, 400, { error: "Cannot edit this task" });
-
-    const { title, description, task_type, reward_amount, reward_token, target_completions, task_url, channel_username, custom_fields, required_screenshots, reference_image_url, instructions } = body;
-    const pricePer1k = parseFloat(await getSetting(supabase, "ad_price_per_1k") || "50");
-    const adFee = Math.ceil(((target_completions || 1000) / 1000) * pricePer1k);
-    const rewardCost = (reward_amount || 0) * (target_completions || 1000);
-    const totalDeposit = adFee + rewardCost;
-
-    const { error } = await supabase.from("tasks").update({
-      title, description, instructions, task_type,
-      reward_amount: reward_amount || 0, reward_token: reward_token || "SNAP",
-      task_url, reference_image_url, required_screenshots: required_screenshots || 1,
-      channel_username, custom_fields,
-      target_completions: target_completions || 1000,
-      ad_fee: adFee, total_budget: totalDeposit,
-    }).eq("id", taskId);
-
-    if (error) return json(res, 400, { error: error.message });
-    json(res, 200, { success: true, total_deposit: totalDeposit });
-    return true;
-  }
-
-  // DELETE /api/advertise/tasks/:id — Delete ad task
-  if (path?.match(/^\/api\/advertise\/tasks\/[a-f0-9-]+$/) && method === "DELETE") {
-    const taskId = path.split("/")[4];
-    const { data: existing } = await supabase.from("tasks").select("advertiser_id, ad_status").eq("id", taskId).single();
-    if (!existing || existing.advertiser_id !== user.id) return json(res, 404, { error: "Not found" });
-    if (!["draft", "pending_deposit"].includes(existing.ad_status)) return json(res, 400, { error: "Cannot delete this task" });
-
-    await supabase.from("tasks").update({ is_active: false, ad_status: "deleted" }).eq("id", taskId);
-    json(res, 200, { success: true });
-    return true;
-  }
-
-  // POST /api/advertise/deposit — Submit deposit request
-  if (path === "/api/advertise/deposit" && method === "POST") {
-    const body = await readBody(req);
-    const { task_id, amount, address } = body;
-
-    if (!task_id || !amount || !address) return json(res, 400, { error: "Missing fields" });
-    if (amount <= 0) return json(res, 400, { error: "Invalid amount" });
-
-    const { data: task } = await supabase.from("tasks").select("id, advertiser_id, ad_status, total_budget").eq("id", task_id).single();
-    if (!task || task.advertiser_id !== user.id) return json(res, 404, { error: "Task not found" });
-
-    const { data: pending } = await supabase.from("ad_deposits").select("id").eq("user_id", user.id).eq("status", "pending").limit(1);
-    if (pending && pending.length > 0) return json(res, 400, { error: "You already have a pending deposit" });
-
-    const { data: deposit, error } = await supabase.from("ad_deposits").insert({
-      user_id: user.id, task_id, amount, address, status: "pending",
-    }).select().single();
-
-    if (error) return json(res, 500, { error: error.message });
-    json(res, 200, { success: true, deposit });
-    return true;
-  }
-
-  // GET /api/advertise/deposits — List user's deposit history
-  if (path === "/api/advertise/deposits" && method === "GET") {
-    const { data: deposits } = await supabase
-      .from("ad_deposits")
-      .select("*, tasks(title)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-    json(res, 200, { deposits: deposits || [] });
-    return true;
-  }
-
-  // POST /api/advertise/tasks/:id/resume — Resume paused task by depositing more
-  if (path?.match(/^\/api\/advertise\/tasks\/[a-f0-9-]+\/resume$/) && method === "POST") {
-    const taskId = path.split("/")[4];
-    const body = await readBody(req);
-    const { amount, address } = body;
-
-    const { data: task } = await supabase.from("tasks").select("advertiser_id, ad_status").eq("id", taskId).single();
-    if (!task || task.advertiser_id !== user.id) return json(res, 404, { error: "Not found" });
-    if (task.ad_status !== "paused") return json(res, 400, { error: "Task is not paused" });
-
-    const { data: pending } = await supabase.from("ad_deposits").select("id").eq("user_id", user.id).eq("status", "pending").limit(1);
-    if (pending && pending.length > 0) return json(res, 400, { error: "You already have a pending deposit" });
-
-    const { data: deposit, error } = await supabase.from("ad_deposits").insert({
-      user_id: user.id, task_id: taskId, amount, address, status: "pending",
-    }).select().single();
-
-    if (error) return json(res, 500, { error: error.message });
-    json(res, 200, { success: true, deposit });
     return true;
   }
 
