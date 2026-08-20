@@ -200,7 +200,29 @@ CREATE TABLE IF NOT EXISTS spins (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   spin_date TEXT NOT NULL,
   reward_earned INTEGER DEFAULT 0,
+  reward_token TEXT DEFAULT 'SNAP',
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Spin Settings
+CREATE TABLE IF NOT EXISTS spin_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  max_spins_per_day INTEGER DEFAULT 3,
+  slot_1 INTEGER DEFAULT 250,
+  slot_1_token TEXT DEFAULT 'SNAP',
+  slot_2 INTEGER DEFAULT 500,
+  slot_2_token TEXT DEFAULT 'GRAM',
+  slot_3 INTEGER DEFAULT 1000,
+  slot_3_token TEXT DEFAULT 'SNAP',
+  slot_4 INTEGER DEFAULT 250,
+  slot_4_token TEXT DEFAULT 'GRAM',
+  slot_5 INTEGER DEFAULT 100,
+  slot_5_token TEXT DEFAULT 'SNAP',
+  slot_6 INTEGER DEFAULT 50,
+  slot_6_token TEXT DEFAULT 'GRAM',
+  slot_7 INTEGER DEFAULT 75,
+  slot_7_token TEXT DEFAULT 'SNAP',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Raffles

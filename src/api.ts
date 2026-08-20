@@ -765,7 +765,16 @@ export async function handleApi(
       .select("*")
       .eq("id", 1)
       .single();
-    json(res, 200, settings || { max_spins_per_day: 3, slot_1: 250, slot_2: 500, slot_3: 1000, slot_4: 250, slot_5: 100, slot_6: 50 });
+    json(res, 200, settings || {
+      max_spins_per_day: 3,
+      slot_1: 250, slot_1_token: 'SNAP',
+      slot_2: 500, slot_2_token: 'GRAM',
+      slot_3: 1000, slot_3_token: 'SNAP',
+      slot_4: 250, slot_4_token: 'GRAM',
+      slot_5: 100, slot_5_token: 'SNAP',
+      slot_6: 50, slot_6_token: 'GRAM',
+      slot_7: 75, slot_7_token: 'SNAP',
+    });
     return true;
   }
 
@@ -774,14 +783,19 @@ export async function handleApi(
 
     const { data: settings } = await supabase
       .from("spin_settings")
-      .select("max_spins_per_day, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6")
+      .select("max_spins_per_day, slot_1, slot_1_token, slot_2, slot_2_token, slot_3, slot_3_token, slot_4, slot_4_token, slot_5, slot_5_token, slot_6, slot_6_token, slot_7, slot_7_token")
       .eq("id", 1)
       .single();
 
     const maxSpins = settings?.max_spins_per_day || 3;
     const rewards = [
-      settings?.slot_1 || 250, settings?.slot_2 || 500, settings?.slot_3 || 1000,
-      settings?.slot_4 || 250, settings?.slot_5 || 100, settings?.slot_6 || 50
+      { amount: settings?.slot_1 || 250, token: settings?.slot_1_token || 'SNAP' },
+      { amount: settings?.slot_2 || 500, token: settings?.slot_2_token || 'GRAM' },
+      { amount: settings?.slot_3 || 1000, token: settings?.slot_3_token || 'SNAP' },
+      { amount: settings?.slot_4 || 250, token: settings?.slot_4_token || 'GRAM' },
+      { amount: settings?.slot_5 || 100, token: settings?.slot_5_token || 'SNAP' },
+      { amount: settings?.slot_6 || 50, token: settings?.slot_6_token || 'GRAM' },
+      { amount: settings?.slot_7 || 75, token: settings?.slot_7_token || 'SNAP' },
     ];
 
     const { count: spinsToday } = await supabase
@@ -805,14 +819,19 @@ export async function handleApi(
 
     const { data: settings } = await supabase
       .from("spin_settings")
-      .select("max_spins_per_day, slot_1, slot_2, slot_3, slot_4, slot_5, slot_6")
+      .select("max_spins_per_day, slot_1, slot_1_token, slot_2, slot_2_token, slot_3, slot_3_token, slot_4, slot_4_token, slot_5, slot_5_token, slot_6, slot_6_token, slot_7, slot_7_token")
       .eq("id", 1)
       .single();
 
     const maxSpins = settings?.max_spins_per_day || 3;
     const rewards = [
-      settings?.slot_1 || 250, settings?.slot_2 || 500, settings?.slot_3 || 1000,
-      settings?.slot_4 || 250, settings?.slot_5 || 100, settings?.slot_6 || 50
+      { amount: settings?.slot_1 || 250, token: settings?.slot_1_token || 'SNAP' },
+      { amount: settings?.slot_2 || 500, token: settings?.slot_2_token || 'GRAM' },
+      { amount: settings?.slot_3 || 1000, token: settings?.slot_3_token || 'SNAP' },
+      { amount: settings?.slot_4 || 250, token: settings?.slot_4_token || 'GRAM' },
+      { amount: settings?.slot_5 || 100, token: settings?.slot_5_token || 'SNAP' },
+      { amount: settings?.slot_6 || 50, token: settings?.slot_6_token || 'GRAM' },
+      { amount: settings?.slot_7 || 75, token: settings?.slot_7_token || 'SNAP' },
     ];
 
     const { count: spinsToday } = await supabase
@@ -826,36 +845,49 @@ export async function handleApi(
       return true;
     }
 
-    const reward = rewards[Math.floor(Math.random() * rewards.length)];
+    const idx = Math.floor(Math.random() * rewards.length);
+    const reward = rewards[idx];
 
     await supabase.from("spins").insert({
       user_id: user.id,
       spin_date: today,
-      reward_earned: reward,
+      reward_earned: reward.amount,
+      reward_token: reward.token,
     });
 
-    await supabase
-      .from("users")
-      .update({ balance: (user.balance || 0) + reward })
-      .eq("id", user.id);
+    if (reward.token === 'GRAM') {
+      await supabase
+        .from("users")
+        .update({ gram: (user.gram || 0) + reward.amount })
+        .eq("id", user.id);
+    } else {
+      await supabase
+        .from("users")
+        .update({ balance: (user.balance || 0) + reward.amount })
+        .eq("id", user.id);
+    }
 
     await supabase.from("transactions").insert({
       user_id: user.id,
       type: "spin_reward",
-      amount: reward,
-      token: "SNAP",
+      amount: reward.amount,
+      token: reward.token,
       description: "Lucky Spin",
     });
 
-    creditReferrerCommission(supabase, user.id, reward, "snap");
+    creditReferrerCommission(supabase, user.id, reward.amount, reward.token.toLowerCase());
 
     const newSpinsToday = (spinsToday || 0) + 1;
 
     json(res, 200, {
       success: true,
-      reward,
+      reward: reward.amount,
+      token: reward.token,
+      slot_index: idx,
       remaining: Math.max(0, maxSpins - newSpinsToday),
-      new_balance: (user.balance || 0) + reward,
+      new_balance: reward.token === 'GRAM' ? user.gram : user.balance,
+      new_gram: reward.token === 'GRAM' ? (user.gram || 0) + reward.amount : user.gram,
+      new_snap: reward.token === 'SNAP' ? (user.balance || 0) + reward.amount : user.balance,
     });
     return true;
   }
@@ -1507,11 +1539,19 @@ async function handleAdminApi(
       id: 1,
       max_spins_per_day: isNaN(maxSpins) ? 3 : maxSpins,
       slot_1: parseInt(body.slot_1) || 250,
+      slot_1_token: body.slot_1_token || 'SNAP',
       slot_2: parseInt(body.slot_2) || 500,
+      slot_2_token: body.slot_2_token || 'GRAM',
       slot_3: parseInt(body.slot_3) || 1000,
+      slot_3_token: body.slot_3_token || 'SNAP',
       slot_4: parseInt(body.slot_4) || 250,
+      slot_4_token: body.slot_4_token || 'GRAM',
       slot_5: parseInt(body.slot_5) || 100,
+      slot_5_token: body.slot_5_token || 'SNAP',
       slot_6: parseInt(body.slot_6) || 50,
+      slot_6_token: body.slot_6_token || 'GRAM',
+      slot_7: parseInt(body.slot_7) || 75,
+      slot_7_token: body.slot_7_token || 'SNAP',
       updated_at: new Date().toISOString(),
     };
     const { data, error } = await supabase
