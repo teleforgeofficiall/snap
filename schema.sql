@@ -86,6 +86,13 @@ CREATE TABLE IF NOT EXISTS tasks (
   channel_username TEXT,
   custom_fields JSONB,
   is_active BOOLEAN DEFAULT TRUE,
+  advertiser_id UUID REFERENCES users(id),
+  target_completions INTEGER DEFAULT 0,
+  current_completions INTEGER DEFAULT 0,
+  ad_fee NUMERIC DEFAULT 0,
+  total_budget NUMERIC DEFAULT 0,
+  budget_spent NUMERIC DEFAULT 0,
+  ad_status TEXT DEFAULT 'draft',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -267,3 +274,23 @@ CREATE TABLE IF NOT EXISTS wallet_requests (
 
 CREATE INDEX IF NOT EXISTS idx_wallet_requests_user ON wallet_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_requests_status ON wallet_requests(status);
+
+-- Ad Deposits
+CREATE TABLE IF NOT EXISTS ad_deposits (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
+  amount NUMERIC NOT NULL,
+  address TEXT NOT NULL,
+  status TEXT DEFAULT 'pending',
+  admin_note TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ad_deposits_user ON ad_deposits(user_id);
+CREATE INDEX IF NOT EXISTS idx_ad_deposits_status ON ad_deposits(status);
+
+-- Ad Settings
+INSERT INTO settings (key, value) VALUES ('ad_price_per_1k', '50')
+ON CONFLICT (key) DO NOTHING;
