@@ -329,10 +329,23 @@ export async function handleApi(
     const submissionMap: Record<string, string> = {};
     submissions?.forEach((s: any) => { submissionMap[s.task_id] = s.status; });
 
-    const tasksWithStatus = tasks?.map((t: any) => ({
-      ...t,
-      user_status: completionMap[t.id] || submissionMap[t.id] || "not_started",
-    })) || [];
+    const tasksWithStatus = tasks?.map((t: any) => {
+      const completion = completionMap[t.id];
+      const submission = submissionMap[t.id];
+
+      let user_status = "not_started";
+      if (submission === "approved" || completion === "completed") {
+        user_status = "completed";
+      } else if (submission === "pending") {
+        user_status = "pending";
+      } else if (submission === "rejected") {
+        user_status = "rejected";
+      } else if (completion === "ongoing") {
+        user_status = "ongoing";
+      }
+
+      return { ...t, user_status };
+    }) || [];
 
     json(res, 200, { tasks: tasksWithStatus });
     return true;
@@ -446,6 +459,11 @@ export async function handleApi(
       json(res, 400, { error: "Already submitted" });
       return true;
     }
+    // Allow re-submission after rejection (delete old images)
+    if (existing && existing.status === "rejected") {
+      await supabase.from("task_submission_images").delete().eq("submission_id", existing.id);
+    }
+
     const { data: task } = await supabase.from("tasks").select("id, task_type").eq("id", taskId).single();
     if (!task) { json(res, 404, { error: "Task not found" }); return true; }
 
