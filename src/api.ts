@@ -1937,11 +1937,22 @@ async function handleAdminApi(
       });
     }
 
+    if (action === "approved") {
+      await supabase.from("transactions").insert({
+        user_id: wr.user_id,
+        type: "withdraw_completed",
+        amount: -wr.amount,
+        token: "gram",
+        description: `Withdrawal approved — ${wr.amount} Gram sent`,
+      });
+    }
+
     try {
+      const tgBotToken = process.env.BOT_TOKEN || "";
       const msg = action === "approved"
-        ? `✅ Your withdrawal of ${wr.amount} Gram has been approved!`
+        ? `✅ Your withdrawal of ${wr.amount} Gram has been approved and sent!`
         : `❌ Your withdrawal of ${wr.amount} Gram has been rejected.${note ? `\nReason: ${note}` : ""}`;
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: wr.users.telegram_id, text: msg }),
@@ -1987,10 +1998,11 @@ async function handleAdminApi(
     }
 
     try {
+      const tgBotToken = process.env.BOT_TOKEN || "";
       const msg = action === "approved"
         ? `✅ Your ad deposit of ${deposit.amount} Gram has been approved! Your task is now live.`
         : `❌ Your ad deposit of ${deposit.amount} Gram has been rejected.${admin_note ? `\nReason: ${admin_note}` : ""}`;
-      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: deposit.users.telegram_id, text: msg }),
