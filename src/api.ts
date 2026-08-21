@@ -468,6 +468,22 @@ export async function handleApi(
     return true;
   }
 
+  // --- Start a screenshot task (moves to ongoing) ---
+  const startMatch = path?.match(/^\/api\/tasks\/([a-f0-9-]+)\/start$/);
+  if (startMatch && method === "POST") {
+    const taskId = startMatch[1];
+    const { data: task } = await supabase.from("tasks").select("id, task_type").eq("id", taskId).single();
+    if (!task) { json(res, 404, { error: "Task not found" }); return true; }
+
+    // Upsert task_completions with status "ongoing"
+    await supabase.from("task_completions").upsert({
+      user_id: user.id, task_id: taskId, status: "ongoing", completed_at: new Date().toISOString(),
+    }, { onConflict: "user_id,task_id" });
+
+    json(res, 200, { success: true });
+    return true;
+  }
+
   // --- Get user's submission status for a task ---
   const subStatusMatch = path?.match(/^\/api\/tasks\/([a-f0-9-]+)\/submission$/);
   if (subStatusMatch && method === "GET") {
