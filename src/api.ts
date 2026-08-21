@@ -74,8 +74,12 @@ export async function handleApi(
   const path = url.pathname;
   const method = req.method;
 
-  // CORS headers
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // CORS headers — restrict to allowed origins
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
+  const origin = req.headers.origin || "";
+  if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
@@ -106,8 +110,9 @@ export async function handleApi(
     const ext = filename?.split(".").pop() || "png";
     const safeName = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
+    const supabaseUrl = process.env.SUPABASE_URL || "";
     const uploadRes = await fetch(
-      `https://xqixkprkyfgpqaqmxmab.supabase.co/storage/v1/object/task-images/${safeName}`,
+      `${supabaseUrl}/storage/v1/object/task-images/${safeName}`,
       {
         method: "POST",
         headers: {
@@ -124,7 +129,7 @@ export async function handleApi(
       return json(res, 500, { error: "Upload failed: " + errText });
     }
 
-    const publicUrl = `https://xqixkprkyfgpqaqmxmab.supabase.co/storage/v1/object/public/task-images/${safeName}`;
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/task-images/${safeName}`;
     json(res, 200, { url: publicUrl });
     return true;
   }
@@ -1384,14 +1389,18 @@ export async function handleApi(
 }
 
 // ============ ADMIN API HANDLER ============
-const ADMIN_PASSWORD = "snapbucks2026";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const adminSessions = new Set<string>();
 
 async function handleAdminApi(
   req: any, res: any, supabase: SupabaseClient, path: string, method: string
 ): Promise<boolean> {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // CORS — restricted for admin
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
+  const origin = req.headers.origin || "";
+  if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (method === "OPTIONS") { res.writeHead(200); res.end(); return true; }
