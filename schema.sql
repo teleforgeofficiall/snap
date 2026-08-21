@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
   telegram_id BIGINT UNIQUE NOT NULL,
   first_name TEXT,
   username TEXT,
-  balance INTEGER DEFAULT 0,
-  gram INTEGER DEFAULT 0,
+  balance NUMERIC(20,8) DEFAULT 0,
+  gram NUMERIC(20,8) DEFAULT 0,
   referral_code TEXT UNIQUE NOT NULL,
   referred_by UUID REFERENCES users(id),
   referral_count INTEGER DEFAULT 0,
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   type TEXT NOT NULL,
-  amount INTEGER NOT NULL,
+  amount NUMERIC(20,8) NOT NULL,
   token TEXT DEFAULT 'SNAP',
   description TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   description TEXT,
   instructions TEXT,
   task_type TEXT NOT NULL,
-  reward_amount INTEGER DEFAULT 0,
+  reward_amount NUMERIC(20,8) DEFAULT 0,
   reward_token TEXT DEFAULT 'SNAP',
   task_url TEXT,
   reference_image_url TEXT,
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS task_completions (
   status TEXT DEFAULT 'pending',
   completed_at TIMESTAMPTZ,
   verified_at TIMESTAMPTZ,
-  reward_earned INTEGER DEFAULT 0,
+  reward_earned NUMERIC(20,8) DEFAULT 0,
   UNIQUE(user_id, task_id)
 );
 
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS campaign_tasks (
   title TEXT NOT NULL,
   task_type TEXT NOT NULL,
   task_url TEXT,
-  reward_amount INTEGER DEFAULT 0,
+  reward_amount NUMERIC(20,8) DEFAULT 0,
   sort_order INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS campaign_task_completions (
   task_id UUID REFERENCES campaign_tasks(id) ON DELETE CASCADE,
   campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE,
   status TEXT DEFAULT 'completed',
-  reward_earned INTEGER DEFAULT 0,
+  reward_earned NUMERIC(20,8) DEFAULT 0,
   completed_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, task_id)
 );
@@ -189,7 +189,7 @@ CREATE TABLE IF NOT EXISTS checkins (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   checkin_date TEXT NOT NULL,
   streak INTEGER DEFAULT 1,
-  reward_earned INTEGER DEFAULT 0,
+  reward_earned NUMERIC(20,8) DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, checkin_date)
 );
@@ -199,7 +199,7 @@ CREATE TABLE IF NOT EXISTS spins (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   spin_date TEXT NOT NULL,
-  reward_earned INTEGER DEFAULT 0,
+  reward_earned NUMERIC(20,8) DEFAULT 0,
   reward_token TEXT DEFAULT 'SNAP',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -244,7 +244,7 @@ CREATE TABLE IF NOT EXISTS raffle_boxes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   raffle_id UUID REFERENCES raffles(id) ON DELETE CASCADE,
   box_number INTEGER NOT NULL,
-  reward_amount INTEGER DEFAULT 0,
+  reward_amount NUMERIC(20,8) DEFAULT 0,
   is_unlocked BOOLEAN DEFAULT FALSE,
   unlocked_by UUID REFERENCES users(id),
   unlocked_at TIMESTAMPTZ
@@ -286,7 +286,7 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('task-images', 'task-imag
 CREATE TABLE IF NOT EXISTS wallet_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
-  amount INTEGER NOT NULL,
+  amount NUMERIC(20,8) NOT NULL,
   token TEXT NOT NULL DEFAULT 'gram',
   address TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
