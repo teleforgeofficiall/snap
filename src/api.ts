@@ -523,7 +523,7 @@ export async function handleApi(
       .single();
 
     if (!task) return json(res, 404, { error: "Task not found" });
-    if (task.task_type !== "join_channel") return json(res, 400, { error: "Not a channel task" });
+    if (task.task_type !== "join_channel" && task.task_type !== "telegram_channel") return json(res, 400, { error: "Not a channel task" });
     if (!task.channel_username) return json(res, 400, { error: "No channel configured" });
 
     // Check if already completed
@@ -537,61 +537,44 @@ export async function handleApi(
       return json(res, 400, { error: "Already completed" });
     }
 
-    // Check membership via Telegram API
-    // Support: @username, t.me/link, t.me/+inviteHash, numeric chat_id
-    let channelRef = task.channel_username;
-    let chatIdForApi = channelRef;
+    // Check membership via Telegram API (best effort - always credit reward)
+    let verified = false;
+    try {
+      let channelRef = task.channel_username;
+      let chatIdForApi = channelRef;
+      const stripped = channelRef.replace(/^(https?:\/\/)?(www\.)?t\.me\//, "").replace(/^(https?:\/\/)?(www\.)?telegram\.me\//, "");
 
-    // Strip URL prefix if present
-    const stripped = channelRef.replace(/^(https?:\/\/)?(www\.)?t\.me\//, "").replace(/^(https?:\/\/)?(www\.)?telegram\.me\//, "");
-
-    if (/^\d+$/.test(stripped)) {
-      // Numeric chat_id (e.g. -1001234567890)
-      chatIdForApi = stripped;
-    } else if (stripped.startsWith("+")) {
-      // Private invite link — resolve via bot API
-      try {
-        const inviteRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: "https://t.me/" + stripped }),
-        });
-        const inviteData = await inviteRes.json();
-        if (inviteData.ok && inviteData.result?.id) {
-          chatIdForApi = String(inviteData.result.id);
-        } else {
-          return json(res, 400, { error: "Cannot resolve channel. Make sure the bot is admin in the channel." });
-        }
-      } catch {
-        return json(res, 400, { error: "Failed to resolve channel invite link." });
+      if (/^\d+$/.test(stripped)) {
+        chatIdForApi = stripped;
+      } else if (stripped.startsWith("+")) {
+        try {
+          const inviteRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: "https://t.me/" + stripped }),
+          });
+          const inviteData = await inviteRes.json();
+          if (inviteData.ok && inviteData.result?.id) {
+            chatIdForApi = String(inviteData.result.id);
+          }
+        } catch {}
+      } else if (stripped.startsWith("@")) {
+        chatIdForApi = stripped;
+      } else if (!stripped.startsWith("@")) {
+        chatIdForApi = "@" + stripped;
       }
-    } else if (stripped.startsWith("@")) {
-      chatIdForApi = stripped;
-    } else if (!stripped.startsWith("@")) {
-      // Bare username without @
-      chatIdForApi = "@" + stripped;
-    }
 
-    const memberRes = await fetch(
-      `https://api.telegram.org/bot${botToken}/getChatMember`,
-      {
+      const memberRes = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: chatIdForApi, user_id: user.telegram_id }),
+      });
+      const memberData = await memberRes.json();
+      if (memberData.ok) {
+        const memberStatus = memberData.result?.status;
+        verified = ["member", "administrator", "creator"].includes(memberStatus);
       }
-    );
-    const memberData = await memberRes.json();
-
-    if (!memberData.ok) {
-      return json(res, 400, { error: "Cannot verify membership. Make sure the bot is admin in the channel." });
-    }
-
-    const status = memberData.result?.status;
-    const isMember = ["member", "administrator", "creator"].includes(status);
-
-    if (!isMember) {
-      return json(res, 400, { error: "You have not joined this channel yet. Please join and try again." });
-    }
+    } catch {} // Always continue — reward credited regardless
 
     // Credit reward
     await supabase.from("task_completions").upsert({
@@ -614,6 +597,70 @@ export async function handleApi(
       amount: task.reward_amount,
       token: task.reward_token,
       description: `Channel join verified`,
+    });
+
+    // Auto-pause ad task if target reached
+    {
+      const { data: fullTask } = await supabase.from("tasks").select("target_completions, current_completions, ad_status").eq("id", taskId).single();
+      if (fullTask && fullTask.target_completions > 0) {
+        const newCount = (fullTask.current_completions || 0) + 1;
+        await supabase.from("tasks").update({ current_completions: newCount }).eq("id", taskId);
+        if (newCount >= fullTask.target_completions && fullTask.ad_status === "active") {
+          await supabase.from("tasks").update({ is_active: false, ad_status: "paused" }).eq("id", taskId);
+        }
+      }
+    }
+
+    json(res, 200, { success: true, reward: task.reward_amount, token: task.reward_token, verified });
+    return true;
+  }
+
+  // --- Verify Telegram Bot (no verification needed, instant reward) ---
+  const verifyBotMatch = path?.match(/^\/api\/tasks\/([a-f0-9-]+)\/verify-bot$/);
+  if (verifyBotMatch && method === "POST") {
+    const taskId = verifyBotMatch[1];
+
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("id, task_type, reward_amount, reward_token")
+      .eq("id", taskId)
+      .single();
+
+    if (!task) return json(res, 404, { error: "Task not found" });
+    if (task.task_type !== "telegram_bot") return json(res, 400, { error: "Not a bot task" });
+
+    // Check if already completed
+    const { data: existing } = await supabase
+      .from("task_completions")
+      .select("id, status")
+      .eq("user_id", user.id)
+      .eq("task_id", taskId)
+      .single();
+    if (existing && existing.status === "completed") {
+      return json(res, 400, { error: "Already completed" });
+    }
+
+    // No verification needed — instant reward
+    await supabase.from("task_completions").upsert({
+      user_id: user.id,
+      task_id: taskId,
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      reward_earned: task.reward_amount,
+    }, { onConflict: "user_id,task_id" });
+
+    if (task.reward_token === "SNAP") {
+      await supabase.from("users").update({ balance: (user.balance || 0) + task.reward_amount }).eq("id", user.id);
+    } else {
+      await supabase.from("users").update({ gram: (user.gram || 0) + task.reward_amount }).eq("id", user.id);
+    }
+
+    await supabase.from("transactions").insert({
+      user_id: user.id,
+      type: "task_reward",
+      amount: task.reward_amount,
+      token: task.reward_token,
+      description: `Bot task completed`,
     });
 
     // Auto-pause ad task if target reached
