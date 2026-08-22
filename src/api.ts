@@ -307,29 +307,19 @@ export async function handleApi(
 
   // ============ TASK ROUTES ============
   if (path === "/api/tasks" && method === "GET") {
-    const { data: tasks } = await supabase
-      .from("tasks")
-      .select("*")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
-
-    const { data: completions } = await supabase
-      .from("task_completions")
-      .select("task_id, status")
-      .eq("user_id", user.id);
-
-    const { data: submissions } = await supabase
-      .from("task_submissions")
-      .select("task_id, status")
-      .eq("user_id", user.id);
+    const [tasksRes, completionsRes, submissionsRes] = await Promise.all([
+      supabase.from("tasks").select("id, title, instructions, task_type, task_url, channel_username, bot_username, bot_link, reward_amount, reward_token, task_logo_url, reference_image_url, required_screenshots, is_active, created_at").eq("is_active", true).order("created_at", { ascending: false }),
+      supabase.from("task_completions").select("task_id, status").eq("user_id", user.id),
+      supabase.from("task_submissions").select("task_id, status").eq("user_id", user.id),
+    ]);
 
     const completionMap: Record<string, string> = {};
-    completions?.forEach((c: any) => { completionMap[c.task_id] = c.status; });
+    completionsRes.data?.forEach((c: any) => { completionMap[c.task_id] = c.status; });
 
     const submissionMap: Record<string, string> = {};
-    submissions?.forEach((s: any) => { submissionMap[s.task_id] = s.status; });
+    submissionsRes.data?.forEach((s: any) => { submissionMap[s.task_id] = s.status; });
 
-    const tasksWithStatus = tasks?.map((t: any) => {
+    const tasksWithStatus = tasksRes.data?.map((t: any) => {
       const completion = completionMap[t.id];
       const submission = submissionMap[t.id];
 
