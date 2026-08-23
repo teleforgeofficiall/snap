@@ -2864,7 +2864,7 @@ async function handleAdminApi(
 
     let query = supabase
       .from("ad_submissions")
-      .select("*, ad_campaigns(title, category, subcategory), users(telegram_id, first_name, username)")
+      .select("*, ad_campaigns(title, category, subcategory, description, target_url, target_username, estimated_reach, completions_count, budget, budget_spent, user_id), users!ad_submissions_user_id_fkey(telegram_id, first_name, username)")
       .order("created_at", { ascending: false });
 
     if (statusFilter) {
@@ -2872,6 +2872,23 @@ async function handleAdminApi(
     }
 
     const { data: submissions } = await query;
+
+    // Fetch advertiser info for each submission
+    if (submissions && submissions.length) {
+      const advertiserIds = [...new Set(submissions.map(s => s.ad_campaigns?.user_id).filter(Boolean))];
+      if (advertiserIds.length) {
+        const { data: advertisers } = await supabase
+          .from("users")
+          .select("id, telegram_id, first_name, username")
+          .in("id", advertiserIds);
+        const advMap = {};
+        (advertisers || []).forEach(a => { advMap[a.id] = a; });
+        submissions.forEach(s => {
+          s.advertiser = s.ad_campaigns?.user_id ? advMap[s.ad_campaigns.user_id] || null : null;
+        });
+      }
+    }
+
     json(res, 200, { submissions: submissions || [] });
     return true;
   }
