@@ -1531,7 +1531,9 @@ export async function handleApi(
       };
     }
 
-    json(res, 200, { rates });
+    const minBudget = parseFloat(await getSetting(supabase, "ad_min_budget") || "1");
+
+    json(res, 200, { rates, min_budget: minBudget });
     return true;
   }
 
@@ -1558,6 +1560,13 @@ export async function handleApi(
     if (budget <= 0) {
       return json(res, 400, { error: "Budget must be greater than 0" });
     }
+
+    // Check minimum budget
+    const minBudget = parseFloat(await getSetting(supabase, "ad_min_budget") || "1");
+    if (budget < minBudget) {
+      return json(res, 400, { error: `Minimum budget is ${minBudget} Gram` });
+    }
+
     if ((user.gram || 0) < budget) {
       return json(res, 400, { error: "Insufficient Gram balance" });
     }
@@ -1713,6 +1722,12 @@ export async function handleApi(
       const newBudget = body.budget;
       if (newBudget <= 0) return json(res, 400, { error: "Budget must be greater than 0" });
 
+      // Check minimum budget
+      const minBudget = parseFloat(await getSetting(supabase, "ad_min_budget") || "1");
+      if (newBudget < minBudget) {
+        return json(res, 400, { error: `Minimum budget is ${minBudget} Gram` });
+      }
+
       const budgetDiff = newBudget - campaign.budget;
       const currentGram = user.gram || 0;
 
@@ -1816,7 +1831,7 @@ export async function handleApi(
   // POST /api/advertise/check-bot — Check if bot is admin in a Telegram channel
   if (path === "/api/advertise/check-bot" && method === "POST") {
     const body = await readBody(req);
-    const channelRef = body.channel_username || body.channel_link;
+    const channelRef = body.channel_username || body.channel_link || "";
     if (!channelRef) return json(res, 400, { error: "channel_username or channel_link required" });
 
     const botToken = process.env.BOT_TOKEN;
@@ -1839,10 +1854,10 @@ export async function handleApi(
         if (inviteData.ok && inviteData.result?.id) {
           chatId = String(inviteData.result.id);
         } else {
-          return json(res, 400, { error: "Cannot resolve channel" });
+          return json(res, 200, { success: false, error: "Cannot resolve channel. Make sure the bot is added to the channel." });
         }
       } catch {
-        return json(res, 400, { error: "Failed to resolve invite link" });
+        return json(res, 200, { success: false, error: "Failed to resolve invite link." });
       }
     } else if (!stripped.startsWith("@")) {
       chatId = "@" + stripped;
@@ -1862,7 +1877,7 @@ export async function handleApi(
       const memberData = await memberRes.json();
 
       if (!memberData.ok) {
-        return json(res, 200, { is_admin: false, channel_name: null });
+        return json(res, 200, { success: false, error: "Channel not found. Check the link and make sure the bot is added." });
       }
 
       const botStatus = memberData.result?.status;
@@ -1870,6 +1885,7 @@ export async function handleApi(
 
       // Get channel info
       let channelName = null;
+      let channelUsername = null;
       if (isBotAdmin) {
         const chatRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
           method: "POST",
@@ -1878,9 +1894,14 @@ export async function handleApi(
         });
         const chatData = await chatRes.json();
         channelName = chatData.result?.title || null;
+        channelUsername = chatData.result?.username || null;
       }
 
-      json(res, 200, { is_admin: isBotAdmin, channel_name: channelName });
+      if (!isBotAdmin) {
+        return json(res, 200, { success: false, error: "Bot is not admin in your channel. Add bot as admin first." });
+      }
+
+      json(res, 200, { success: true, channel_name: channelName, channel_username: channelUsername, chat_id: chatId });
     } catch (e: any) {
       json(res, 500, { error: "Failed to check bot status" });
     }
@@ -2628,7 +2649,9 @@ async function handleAdminApi(
       };
     }
 
-    json(res, 200, { settings });
+    const minBudget = parseFloat(await getSetting(supabase, "ad_min_budget") || "1");
+
+    json(res, 200, { settings, min_budget: minBudget });
     return true;
   }
 
@@ -2651,6 +2674,11 @@ async function handleAdminApi(
       "custom_task",
       "run_campaign",
     ];
+
+    // Save min budget
+    if (body.ad_min_budget !== undefined) {
+      await setSetting(supabase, "ad_min_budget", String(body.ad_min_budget));
+    }
 
     for (const sub of subcategories) {
       if (body[`ad_rate_${sub}`] !== undefined) {
