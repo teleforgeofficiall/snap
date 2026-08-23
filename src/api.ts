@@ -1552,7 +1552,7 @@ export async function handleApi(
   // POST /api/advertise/campaign — Create new campaign (status: draft)
   if (path === "/api/advertise/campaign" && method === "POST") {
     const body = await readBody(req);
-    const { category, subcategory, title, description, target_url, target_username, budget } = body;
+    const { category, subcategory, title, description, target_url, target_username, target_chat_id, budget } = body;
 
     if (!category || !subcategory || !title || !budget) {
       return json(res, 400, { error: "Missing required fields: category, subcategory, title, budget" });
@@ -1601,6 +1601,7 @@ export async function handleApi(
         description: description || null,
         target_url: target_url || null,
         target_username: target_username || null,
+        target_chat_id: target_chat_id || null,
         budget,
         budget_spent: 0,
         completions_count: 0,
@@ -1837,38 +1838,65 @@ export async function handleApi(
     const botToken = process.env.BOT_TOKEN;
     if (!botToken) return json(res, 500, { error: "BOT_TOKEN not set" });
 
-    // Resolve channel reference to chat_id
-    let chatId = channelRef;
-    const stripped = channelRef.replace(/^(https?:\/\/)?(www\.)?t\.me\//, "").replace(/^(https?:\/\/)?(www\.)?telegram\.me\//, "");
+    // Get bot ID once (cache)
+    const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const meData = await meRes.json();
+    if (!meData.ok) return json(res, 500, { error: "Bot token invalid" });
+    const botId = meData.result.id;
 
-    if (/^\d+$/.test(stripped)) {
-      chatId = stripped;
-    } else if (stripped.startsWith("+")) {
+    // Helper: resolve any channel reference to chatId via getChat
+    async function resolveViaGetChat(ref: string): Promise<{ ok: boolean; chatId?: string; chat?: any }> {
       try {
-        const inviteRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+        const r = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: "https://t.me/" + stripped }),
+          body: JSON.stringify({ chat_id: ref }),
         });
-        const inviteData = await inviteRes.json();
-        if (inviteData.ok && inviteData.result?.id) {
-          chatId = String(inviteData.result.id);
-        } else {
-          return json(res, 200, { success: false, error: "Cannot resolve channel. Make sure the bot is added to the channel." });
-        }
-      } catch {
-        return json(res, 200, { success: false, error: "Failed to resolve invite link." });
-      }
-    } else if (!stripped.startsWith("@")) {
-      chatId = "@" + stripped;
+        const d = await r.json();
+        if (d.ok && d.result?.id) return { ok: true, chatId: String(d.result.id), chat: d.result };
+        return { ok: false };
+      } catch { return { ok: false }; }
     }
 
-    try {
-      const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
-      const meData = await meRes.json();
-      if (!meData.ok) return json(res, 500, { error: "Bot token invalid" });
+    // Step 1: Strip URL prefixes
+    const stripped = channelRef
+      .replace(/^(https?:\/\/)?(www\.)?t\.me\//, "")
+      .replace(/^(https?:\/\/)?(www\.)?telegram\.me\//, "")
+      .replace(/^(https?:\/\/)?(www\.)?telegram\.dog\//, "");
 
-      const botId = meData.result.id;
+    let chatId: string | null = null;
+
+    // Step 2: Try resolving based on format
+    if (/^-?\d{10,}$/.test(stripped)) {
+      // Pure numeric ID (e.g. -1001234567890)
+      chatId = stripped;
+    } else if (stripped.startsWith("+")) {
+      // Invite link: +HASH → https://t.me/+HASH
+      const res = await resolveViaGetChat("https://t.me/" + stripped);
+      if (res.ok) chatId = res.chatId!;
+    } else if (stripped.startsWith("joinchat/")) {
+      // Older invite link: joinchat/HASH → https://t.me/joinchat/HASH
+      const res = await resolveViaGetChat("https://t.me/" + stripped);
+      if (res.ok) chatId = res.chatId!;
+    } else if (/^c\/\d+/.test(stripped)) {
+      // Private channel post link: c/1234567890/123 → extract chat ID
+      const match = stripped.match(/^c\/(-?\d+)/);
+      if (match) chatId = match[1];
+    } else {
+      // Username: @channelname or channelname
+      const username = stripped.startsWith("@") ? stripped : "@" + stripped;
+      chatId = username;
+    }
+
+    if (!chatId) {
+      return json(res, 200, {
+        success: false,
+        error: "Cannot resolve this channel link. Paste a direct join link (https://t.me/+hash) or check if the link is correct."
+      });
+    }
+
+    // Step 3: Check if bot is a member of the channel
+    try {
       const memberRes = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1877,31 +1905,41 @@ export async function handleApi(
       const memberData = await memberRes.json();
 
       if (!memberData.ok) {
-        return json(res, 200, { success: false, error: "Channel not found. Check the link and make sure the bot is added." });
+        return json(res, 200, {
+          success: false,
+          error: "Channel not found. Make sure the link is correct and the bot has been added to the channel."
+        });
       }
 
       const botStatus = memberData.result?.status;
       const isBotAdmin = ["administrator", "creator"].includes(botStatus);
 
-      // Get channel info
-      let channelName = null;
-      let channelUsername = null;
-      if (isBotAdmin) {
-        const chatRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: chatId }),
-        });
-        const chatData = await chatRes.json();
-        channelName = chatData.result?.title || null;
-        channelUsername = chatData.result?.username || null;
-      }
+      // Step 4: Get channel info (name, username)
+      const chatRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId }),
+      });
+      const chatData = await chatRes.json();
+      const channelName = chatData.result?.title || null;
+      const channelUsername = chatData.result?.username ? ("@" + chatData.result.username) : null;
 
       if (!isBotAdmin) {
-        return json(res, 200, { success: false, error: "Bot is not admin in your channel. Add bot as admin first." });
+        return json(res, 200, {
+          success: false,
+          error: "Bot is not admin in this channel. Add bot as admin with edit messages permission first.",
+          channel_name: channelName,
+          channel_username: channelUsername,
+          chat_id: chatId,
+        });
       }
 
-      json(res, 200, { success: true, channel_name: channelName, channel_username: channelUsername, chat_id: chatId });
+      json(res, 200, {
+        success: true,
+        channel_name: channelName,
+        channel_username: channelUsername,
+        chat_id: chatId,
+      });
     } catch (e: any) {
       json(res, 500, { error: "Failed to check bot status" });
     }
@@ -1953,31 +1991,45 @@ async function handleAdminApi(
     const botToken = process.env.BOT_TOKEN;
     if (!botToken) return json(res, 500, { error: "BOT_TOKEN not set" });
 
-    // Resolve channel reference to chat_id
-    let chatId = channel_ref;
-    const stripped = channel_ref.replace(/^(https?:\/\/)?(www\.)?t\.me\//, "").replace(/^(https?:\/\/)?(www\.)?telegram\.me\//, "");
-
-    if (/^\d+$/.test(stripped)) {
-      chatId = stripped;
-    } else if (stripped.startsWith("+")) {
-      // Private invite link — resolve
+    // Helper: resolve any channel reference via getChat
+    async function resolveViaGetChat(ref: string): Promise<{ ok: boolean; chatId?: string; chat?: any }> {
       try {
-        const inviteRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+        const r = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ chat_id: "https://t.me/" + stripped }),
+          body: JSON.stringify({ chat_id: ref }),
         });
-        const inviteData = await inviteRes.json();
-        if (inviteData.ok && inviteData.result?.id) {
-          chatId = String(inviteData.result.id);
-        } else {
-          return json(res, 400, { error: "Cannot resolve channel. Check the link and make sure the bot has access." });
-        }
-      } catch {
-        return json(res, 400, { error: "Failed to resolve invite link." });
-      }
-    } else if (!stripped.startsWith("@")) {
-      chatId = "@" + stripped;
+        const d = await r.json();
+        if (d.ok && d.result?.id) return { ok: true, chatId: String(d.result.id), chat: d.result };
+        return { ok: false };
+      } catch { return { ok: false }; }
+    }
+
+    // Strip URL prefixes
+    const stripped = channel_ref
+      .replace(/^(https?:\/\/)?(www\.)?t\.me\//, "")
+      .replace(/^(https?:\/\/)?(www\.)?telegram\.me\//, "")
+      .replace(/^(https?:\/\/)?(www\.)?telegram\.dog\//, "");
+
+    let chatId: string | null = null;
+
+    if (/^-?\d{10,}$/.test(stripped)) {
+      chatId = stripped;
+    } else if (stripped.startsWith("+")) {
+      const res = await resolveViaGetChat("https://t.me/" + stripped);
+      if (res.ok) chatId = res.chatId!;
+    } else if (stripped.startsWith("joinchat/")) {
+      const res = await resolveViaGetChat("https://t.me/" + stripped);
+      if (res.ok) chatId = res.chatId!;
+    } else if (/^c\/\d+/.test(stripped)) {
+      const match = stripped.match(/^c\/(-?\d+)/);
+      if (match) chatId = match[1];
+    } else {
+      chatId = stripped.startsWith("@") ? stripped : "@" + stripped;
+    }
+
+    if (!chatId) {
+      return json(res, 400, { error: "Cannot resolve this channel link. Paste a direct join link (https://t.me/+hash)." });
     }
 
     // Check bot's own membership
@@ -1995,14 +2047,14 @@ async function handleAdminApi(
       const memberData = await memberRes.json();
 
       if (!memberData.ok) {
-        return json(res, 400, { error: "Bot is not in this channel or cannot access it. Add the bot as admin first." });
+        return json(res, 400, { error: "Channel not found. Make sure the link is correct and the bot has been added." });
       }
 
       const botStatus = memberData.result?.status;
       const isAdmin = ["administrator", "creator"].includes(botStatus);
 
       if (!isAdmin) {
-        return json(res, 400, { error: "Bot is a member but NOT admin. Promote the bot to admin with permission to read messages." });
+        return json(res, 400, { error: "Bot is not admin in this channel. Add bot as admin with edit messages permission first." });
       }
 
       // Get channel info
