@@ -2511,7 +2511,6 @@ async function handleAdminApi(
   // ============ ADMIN — WALLET REQUEST REVIEW ============
   if (path.startsWith("/api/admin/wallet-requests/") && path.endsWith("/review") && method === "POST") {
     const requestId = path.split("/")[4];
-    const body = await readBody(req);
     const { action, note } = body;
 
     if (!["approved", "rejected"].includes(action)) {
@@ -2589,7 +2588,6 @@ async function handleAdminApi(
   // POST /api/admin/ad-deposits/:id/review — Approve/reject deposit
   if (path?.match(/^\/api\/admin\/ad-deposits\/[a-f0-9-]+\/review$/) && method === "POST") {
     const depositId = path.split("/")[4];
-    const body = await readBody(req);
     const { action, admin_note } = body;
 
     const { data: deposit } = await supabase.from("ad_deposits").select("*, users(telegram_id, first_name), tasks(id)").eq("id", depositId).single();
@@ -2657,8 +2655,6 @@ async function handleAdminApi(
 
   // PUT /api/admin/ad-settings — Update ad settings
   if (path === "/api/admin/ad-settings" && method === "PUT") {
-    const body = await readBody(req);
-
     const subcategories = [
       "telegram_channel_join",
       "telegram_bot_start",
@@ -2832,7 +2828,6 @@ async function handleAdminApi(
   const adminAdCampaignReject = path?.match(/^\/api\/admin\/ad-campaigns\/([a-f0-9-]+)\/reject$/);
   if (adminAdCampaignReject && method === "POST") {
     const campaignId = adminAdCampaignReject[1];
-    const body = await readBody(req);
     const { reason } = body;
 
     const { data: campaign } = await supabase
@@ -2902,7 +2897,6 @@ async function handleAdminApi(
   const adminAdCampaignStop = path?.match(/^\/api\/admin\/ad-campaigns\/([a-f0-9-]+)\/stop$/);
   if (adminAdCampaignStop && method === "POST") {
     const campaignId = adminAdCampaignStop[1];
-    const body = await readBody(req);
 
     const { data: campaign } = await supabase
       .from("ad_campaigns")
@@ -3042,7 +3036,6 @@ async function handleAdminApi(
   const adminAdSubReject = path?.match(/^\/api\/admin\/ad-submissions\/([a-f0-9-]+)\/reject$/);
   if (adminAdSubReject && method === "POST") {
     const subId = adminAdSubReject[1];
-    const body = await readBody(req);
     const { reason } = body;
 
     const { data: submission } = await supabase
