@@ -1487,6 +1487,383 @@ export async function handleApi(
     return true;
   }
 
+  // ============ NEW ADVERTISE SYSTEM ROUTES ============
+
+  // GET /api/advertise/balance — Return user's gram balance
+  if (path === "/api/advertise/balance" && method === "GET") {
+    json(res, 200, { balance: user.gram || 0 });
+    return true;
+  }
+
+  // GET /api/advertise/rates — Return all ad_rate_* and reach_* settings
+  if (path === "/api/advertise/rates" && method === "GET") {
+    const subcategories = [
+      "telegram_channel_join",
+      "telegram_bot_start",
+      "x_follow",
+      "x_retweet",
+      "x_post_like",
+      "website_visit",
+    ];
+
+    const rates: Record<string, { price: number; reach: number }> = {};
+    for (const sub of subcategories) {
+      const priceStr = await getSetting(supabase, `ad_rate_${sub}`);
+      const reachStr = await getSetting(supabase, `reach_${sub}`);
+      rates[sub] = {
+        price: parseFloat(priceStr || "50"),
+        reach: parseInt(reachStr || "200"),
+      };
+    }
+
+    json(res, 200, { rates });
+    return true;
+  }
+
+  // GET /api/advertise/campaigns — Return user's campaigns
+  if (path === "/api/advertise/campaigns" && method === "GET") {
+    const { data: campaigns } = await supabase
+      .from("ad_campaigns")
+      .select("id, category, subcategory, title, description, target_url, target_username, budget, budget_spent, completions_count, status, reject_reason, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    json(res, 200, { campaigns: campaigns || [] });
+    return true;
+  }
+
+  // POST /api/advertise/campaign — Create new campaign (status: draft)
+  if (path === "/api/advertise/campaign" && method === "POST") {
+    const body = await readBody(req);
+    const { category, subcategory, title, description, target_url, target_username, budget } = body;
+
+    if (!category || !subcategory || !title || !budget) {
+      return json(res, 400, { error: "Missing required fields: category, subcategory, title, budget" });
+    }
+    if (budget <= 0) {
+      return json(res, 400, { error: "Budget must be greater than 0" });
+    }
+    if ((user.gram || 0) < budget) {
+      return json(res, 400, { error: "Insufficient Gram balance" });
+    }
+
+    // Lock budget: deduct from user's gram
+    const newGram = (user.gram || 0) - budget;
+    await supabase.from("users").update({ gram: newGram }).eq("id", user.id);
+
+    // Create transaction record
+    await supabase.from("ad_balance_transactions").insert({
+      user_id: user.id,
+      type: "lock",
+      amount: -budget,
+      campaign_id: null,
+    });
+
+    // Create campaign
+    const { data: campaign, error } = await supabase
+      .from("ad_campaigns")
+      .insert({
+        user_id: user.id,
+        category,
+        subcategory,
+        title,
+        description: description || null,
+        target_url: target_url || null,
+        target_username: target_username || null,
+        budget,
+        budget_spent: 0,
+        completions_count: 0,
+        status: "draft",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      // Refund on error
+      await supabase.from("users").update({ gram: user.gram || 0 }).eq("id", user.id);
+      return json(res, 500, { error: error.message });
+    }
+
+    // Link the lock transaction to the campaign
+    await supabase
+      .from("ad_balance_transactions")
+      .update({ campaign_id: campaign.id })
+      .eq("campaign_id", null)
+      .eq("user_id", user.id)
+      .eq("type", "lock")
+      .eq("amount", -budget);
+
+    json(res, 200, { campaign });
+    return true;
+  }
+
+  // POST /api/advertise/campaign/:id/submit — Submit campaign for review
+  const submitAdMatch = path?.match(/^\/api\/advertise\/campaign\/([a-f0-9-]+)\/submit$/);
+  if (submitAdMatch && method === "POST") {
+    const campaignId = submitAdMatch[1];
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("id, user_id, status")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+    if (campaign.user_id !== user.id) return json(res, 403, { error: "Not your campaign" });
+    if (campaign.status !== "draft") return json(res, 400, { error: "Campaign must be in draft status" });
+
+    const { error } = await supabase
+      .from("ad_campaigns")
+      .update({ status: "under_review", updated_at: new Date().toISOString() })
+      .eq("id", campaignId);
+
+    if (error) return json(res, 500, { error: error.message });
+
+    const { data: updated } = await supabase
+      .from("ad_campaigns")
+      .select()
+      .eq("id", campaignId)
+      .single();
+
+    json(res, 200, { campaign: updated });
+    return true;
+  }
+
+  // POST /api/advertise/campaign/:id/resubmit — Resubmit rejected campaign
+  const resubmitAdMatch = path?.match(/^\/api\/advertise\/campaign\/([a-f0-9-]+)\/resubmit$/);
+  if (resubmitAdMatch && method === "POST") {
+    const campaignId = resubmitAdMatch[1];
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("id, user_id, status")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+    if (campaign.user_id !== user.id) return json(res, 403, { error: "Not your campaign" });
+    if (campaign.status !== "rejected") return json(res, 400, { error: "Campaign must be rejected to resubmit" });
+
+    const { error } = await supabase
+      .from("ad_campaigns")
+      .update({ status: "under_review", reject_reason: null, updated_at: new Date().toISOString() })
+      .eq("id", campaignId);
+
+    if (error) return json(res, 500, { error: error.message });
+
+    const { data: updated } = await supabase
+      .from("ad_campaigns")
+      .select()
+      .eq("id", campaignId)
+      .single();
+
+    json(res, 200, { campaign: updated });
+    return true;
+  }
+
+  // PUT /api/advertise/campaign/:id — Update campaign
+  const updateAdMatch = path?.match(/^\/api\/advertise\/campaign\/([a-f0-9-]+)$/);
+  if (updateAdMatch && method === "PUT") {
+    const campaignId = updateAdMatch[1];
+    const body = await readBody(req);
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("id, user_id, status, budget, budget_spent")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+    if (campaign.user_id !== user.id) return json(res, 403, { error: "Not your campaign" });
+    if (!["draft", "rejected"].includes(campaign.status)) {
+      return json(res, 400, { error: "Can only edit draft or rejected campaigns" });
+    }
+
+    const updateData: any = { updated_at: new Date().toISOString() };
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.target_url !== undefined) updateData.target_url = body.target_url;
+    if (body.target_username !== undefined) updateData.target_username = body.target_username;
+
+    // Handle budget change
+    if (body.budget !== undefined && body.budget !== campaign.budget) {
+      const newBudget = body.budget;
+      if (newBudget <= 0) return json(res, 400, { error: "Budget must be greater than 0" });
+
+      const budgetDiff = newBudget - campaign.budget;
+      const currentGram = user.gram || 0;
+
+      if (budgetDiff > 0) {
+        // Budget increased — need more gram
+        if (currentGram < budgetDiff) {
+          return json(res, 400, { error: "Insufficient Gram balance to increase budget" });
+        }
+        await supabase.from("users").update({ gram: currentGram - budgetDiff }).eq("id", user.id);
+        await supabase.from("ad_balance_transactions").insert({
+          user_id: user.id,
+          type: "lock",
+          amount: -budgetDiff,
+          campaign_id: campaignId,
+        });
+      } else {
+        // Budget decreased — unlock excess
+        const unlockAmount = Math.abs(budgetDiff);
+        await supabase.from("users").update({ gram: currentGram + unlockAmount }).eq("id", user.id);
+        await supabase.from("ad_balance_transactions").insert({
+          user_id: user.id,
+          type: "unlock",
+          amount: unlockAmount,
+          campaign_id: campaignId,
+        });
+      }
+
+      updateData.budget = newBudget;
+    }
+
+    const { error } = await supabase
+      .from("ad_campaigns")
+      .update(updateData)
+      .eq("id", campaignId);
+
+    if (error) return json(res, 500, { error: error.message });
+
+    const { data: updated } = await supabase
+      .from("ad_campaigns")
+      .select()
+      .eq("id", campaignId)
+      .single();
+
+    json(res, 200, { campaign: updated });
+    return true;
+  }
+
+  // DELETE /api/advertise/campaign/:id — Delete/cancel campaign
+  const deleteAdMatch = path?.match(/^\/api\/advertise\/campaign\/([a-f0-9-]+)$/);
+  if (deleteAdMatch && method === "DELETE") {
+    const campaignId = deleteAdMatch[1];
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("id, user_id, status, budget, budget_spent")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+    if (campaign.user_id !== user.id) return json(res, 403, { error: "Not your campaign" });
+
+    if (["draft", "rejected"].includes(campaign.status)) {
+      // Delete campaign and unlock any locked budget
+      const lockedAmount = campaign.budget - (campaign.budget_spent || 0);
+      if (lockedAmount > 0) {
+        const currentGram = user.gram || 0;
+        await supabase.from("users").update({ gram: currentGram + lockedAmount }).eq("id", user.id);
+        await supabase.from("ad_balance_transactions").insert({
+          user_id: user.id,
+          type: "unlock",
+          amount: lockedAmount,
+          campaign_id: campaignId,
+        });
+      }
+      await supabase.from("ad_campaigns").delete().eq("id", campaignId);
+    } else if (["running", "paused"].includes(campaign.status)) {
+      // Cancel: unlock remaining budget
+      const remainingBudget = campaign.budget - (campaign.budget_spent || 0);
+      if (remainingBudget > 0) {
+        const currentGram = user.gram || 0;
+        await supabase.from("users").update({ gram: currentGram + remainingBudget }).eq("id", user.id);
+        await supabase.from("ad_balance_transactions").insert({
+          user_id: user.id,
+          type: "unlock",
+          amount: remainingBudget,
+          campaign_id: campaignId,
+        });
+      }
+      await supabase
+        .from("ad_campaigns")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("id", campaignId);
+    } else {
+      return json(res, 400, { error: `Cannot delete campaign in ${campaign.status} status` });
+    }
+
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // POST /api/advertise/check-bot — Check if bot is admin in a Telegram channel
+  if (path === "/api/advertise/check-bot" && method === "POST") {
+    const body = await readBody(req);
+    const channelRef = body.channel_username || body.channel_link;
+    if (!channelRef) return json(res, 400, { error: "channel_username or channel_link required" });
+
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken) return json(res, 500, { error: "BOT_TOKEN not set" });
+
+    // Resolve channel reference to chat_id
+    let chatId = channelRef;
+    const stripped = channelRef.replace(/^(https?:\/\/)?(www\.)?t\.me\//, "").replace(/^(https?:\/\/)?(www\.)?telegram\.me\//, "");
+
+    if (/^\d+$/.test(stripped)) {
+      chatId = stripped;
+    } else if (stripped.startsWith("+")) {
+      try {
+        const inviteRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: "https://t.me/" + stripped }),
+        });
+        const inviteData = await inviteRes.json();
+        if (inviteData.ok && inviteData.result?.id) {
+          chatId = String(inviteData.result.id);
+        } else {
+          return json(res, 400, { error: "Cannot resolve channel" });
+        }
+      } catch {
+        return json(res, 400, { error: "Failed to resolve invite link" });
+      }
+    } else if (!stripped.startsWith("@")) {
+      chatId = "@" + stripped;
+    }
+
+    try {
+      const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+      const meData = await meRes.json();
+      if (!meData.ok) return json(res, 500, { error: "Bot token invalid" });
+
+      const botId = meData.result.id;
+      const memberRes = await fetch(`https://api.telegram.org/bot${botToken}/getChatMember`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, user_id: botId }),
+      });
+      const memberData = await memberRes.json();
+
+      if (!memberData.ok) {
+        return json(res, 200, { is_admin: false, channel_name: null });
+      }
+
+      const botStatus = memberData.result?.status;
+      const isBotAdmin = ["administrator", "creator"].includes(botStatus);
+
+      // Get channel info
+      let channelName = null;
+      if (isBotAdmin) {
+        const chatRes = await fetch(`https://api.telegram.org/bot${botToken}/getChat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId }),
+        });
+        const chatData = await chatRes.json();
+        channelName = chatData.result?.title || null;
+      }
+
+      json(res, 200, { is_admin: isBotAdmin, channel_name: channelName });
+    } catch (e: any) {
+      json(res, 500, { error: "Failed to check bot status" });
+    }
+    return true;
+  }
+
   // 404
   json(res, 404, { error: "Not found" });
   return true;
@@ -2200,17 +2577,56 @@ async function handleAdminApi(
     return true;
   }
 
-  // GET /api/admin/ad-settings — Get ad settings
+  // GET /api/admin/ad-settings — Get all ad_rate_* and reach_* settings
   if (path === "/api/admin/ad-settings" && method === "GET") {
-    const pricePer1k = await getSetting(supabase, "ad_price_per_1k");
-    json(res, 200, { price_per_1k: parseFloat(pricePer1k || "50") });
+    const subcategories = [
+      "telegram_channel_join",
+      "telegram_bot_start",
+      "x_follow",
+      "x_retweet",
+      "x_post_like",
+      "website_visit",
+    ];
+
+    const settings: Record<string, { price: number; reach: number }> = {};
+    for (const sub of subcategories) {
+      const priceStr = await getSetting(supabase, `ad_rate_${sub}`);
+      const reachStr = await getSetting(supabase, `reach_${sub}`);
+      settings[sub] = {
+        price: parseFloat(priceStr || "50"),
+        reach: parseInt(reachStr || "200"),
+      };
+    }
+
+    json(res, 200, { settings });
     return true;
   }
 
   // PUT /api/admin/ad-settings — Update ad settings
   if (path === "/api/admin/ad-settings" && method === "PUT") {
     const body = await readBody(req);
+
+    const subcategories = [
+      "telegram_channel_join",
+      "telegram_bot_start",
+      "x_follow",
+      "x_retweet",
+      "x_post_like",
+      "website_visit",
+    ];
+
+    for (const sub of subcategories) {
+      if (body[`ad_rate_${sub}`] !== undefined) {
+        await setSetting(supabase, `ad_rate_${sub}`, String(body[`ad_rate_${sub}`]));
+      }
+      if (body[`reach_${sub}`] !== undefined) {
+        await setSetting(supabase, `reach_${sub}`, String(body[`reach_${sub}`]));
+      }
+    }
+
+    // Also support legacy single setting
     if (body.price_per_1k !== undefined) await setSetting(supabase, "ad_price_per_1k", String(body.price_per_1k));
+
     json(res, 200, { success: true });
     return true;
   }
@@ -2222,6 +2638,318 @@ async function handleAdminApi(
       supabase.from("tasks").select("*", { count: "exact", head: true }).not("advertiser_id", "is", null),
     ]);
     json(res, 200, { pendingDeposits: pendingDeposits || 0, totalAdTasks: totalAdTasks || 0 });
+    return true;
+  }
+
+  // ============ AD CAMPAIGN ADMIN ROUTES ============
+
+  // GET /api/admin/ad-campaigns — List all ad campaigns
+  if (path === "/api/admin/ad-campaigns" && method === "GET") {
+    const urlObj = new URL(req.url || "", `http://${req.headers.host}`);
+    const statusFilter = urlObj.searchParams.get("status");
+
+    let query = supabase
+      .from("ad_campaigns")
+      .select("*, users(telegram_id, first_name, username)")
+      .order("created_at", { ascending: false });
+
+    if (statusFilter) {
+      query = query.eq("status", statusFilter);
+    }
+
+    const { data: campaigns } = await query;
+    json(res, 200, { campaigns: campaigns || [] });
+    return true;
+  }
+
+  // GET /api/admin/ad-campaigns/:id — Get campaign detail
+  const adminAdCampaignGet = path?.match(/^\/api\/admin\/ad-campaigns\/([a-f0-9-]+)$/);
+  if (adminAdCampaignGet && method === "GET") {
+    const campaignId = adminAdCampaignGet[1];
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("*, users(telegram_id, first_name, username)")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+
+    const { data: submissions } = await supabase
+      .from("ad_submissions")
+      .select("*, users(telegram_id, first_name, username)")
+      .eq("campaign_id", campaignId)
+      .order("created_at", { ascending: false });
+
+    json(res, 200, { campaign, submissions: submissions || [] });
+    return true;
+  }
+
+  // POST /api/admin/ad-campaigns/:id/approve — Approve campaign
+  const adminAdCampaignApprove = path?.match(/^\/api\/admin\/ad-campaigns\/([a-f0-9-]+)\/approve$/);
+  if (adminAdCampaignApprove && method === "POST") {
+    const campaignId = adminAdCampaignApprove[1];
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("id, user_id, status, title")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+    if (campaign.status !== "under_review") return json(res, 400, { error: "Campaign is not under review" });
+
+    const { error } = await supabase
+      .from("ad_campaigns")
+      .update({ status: "running", updated_at: new Date().toISOString() })
+      .eq("id", campaignId);
+
+    if (error) return json(res, 500, { error: error.message });
+
+    // Notify advertiser
+    try {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("telegram_id")
+        .eq("id", campaign.user_id)
+        .single();
+
+      if (userData?.telegram_id) {
+        const tgBotToken = process.env.BOT_TOKEN || "";
+        await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: userData.telegram_id,
+            text: `Your ad campaign "${campaign.title || "Untitled"}" has been approved and is now running!`,
+          }),
+        });
+      }
+    } catch (e) { /* non-blocking */ }
+
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // POST /api/admin/ad-campaigns/:id/reject — Reject campaign
+  const adminAdCampaignReject = path?.match(/^\/api\/admin\/ad-campaigns\/([a-f0-9-]+)\/reject$/);
+  if (adminAdCampaignReject && method === "POST") {
+    const campaignId = adminAdCampaignReject[1];
+    const body = await readBody(req);
+    const { reason } = body;
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("id, user_id, status, title, budget, budget_spent")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+    if (campaign.status !== "under_review") return json(res, 400, { error: "Campaign is not under review" });
+
+    // Unlock remaining budget
+    const lockedAmount = campaign.budget - (campaign.budget_spent || 0);
+    if (lockedAmount > 0) {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("gram")
+        .eq("id", campaign.user_id)
+        .single();
+
+      await supabase.from("users").update({ gram: (userData?.gram || 0) + lockedAmount }).eq("id", campaign.user_id);
+      await supabase.from("ad_balance_transactions").insert({
+        user_id: campaign.user_id,
+        type: "unlock",
+        amount: lockedAmount,
+        campaign_id: campaignId,
+      });
+    }
+
+    const { error } = await supabase
+      .from("ad_campaigns")
+      .update({
+        status: "rejected",
+        reject_reason: reason || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", campaignId);
+
+    if (error) return json(res, 500, { error: error.message });
+
+    // Notify advertiser
+    try {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("telegram_id")
+        .eq("id", campaign.user_id)
+        .single();
+
+      if (userData?.telegram_id) {
+        const tgBotToken = process.env.BOT_TOKEN || "";
+        await fetch(`https://api.telegram.org/bot${tgBotToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: userData.telegram_id,
+            text: `Your ad campaign "${campaign.title || "Untitled"}" has been rejected.${reason ? ` Reason: ${reason}` : ""}`,
+          }),
+        });
+      }
+    } catch (e) { /* non-blocking */ }
+
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // POST /api/admin/ad-campaigns/:id/stop — Stop/pause campaign
+  const adminAdCampaignStop = path?.match(/^\/api\/admin\/ad-campaigns\/([a-f0-9-]+)\/stop$/);
+  if (adminAdCampaignStop && method === "POST") {
+    const campaignId = adminAdCampaignStop[1];
+    const body = await readBody(req);
+
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("id, status")
+      .eq("id", campaignId)
+      .single();
+
+    if (!campaign) return json(res, 404, { error: "Campaign not found" });
+    if (campaign.status !== "running") return json(res, 400, { error: "Campaign is not running" });
+
+    const { error } = await supabase
+      .from("ad_campaigns")
+      .update({ status: "paused", updated_at: new Date().toISOString() })
+      .eq("id", campaignId);
+
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // ============ AD SUBMISSION ADMIN ROUTES ============
+
+  // GET /api/admin/ad-submissions — List ad submissions
+  if (path === "/api/admin/ad-submissions" && method === "GET") {
+    const urlObj = new URL(req.url || "", `http://${req.headers.host}`);
+    const statusFilter = urlObj.searchParams.get("status");
+
+    let query = supabase
+      .from("ad_submissions")
+      .select("*, ad_campaigns(title, category, subcategory), users(telegram_id, first_name, username)")
+      .order("created_at", { ascending: false });
+
+    if (statusFilter) {
+      query = query.eq("status", statusFilter);
+    }
+
+    const { data: submissions } = await query;
+    json(res, 200, { submissions: submissions || [] });
+    return true;
+  }
+
+  // POST /api/admin/ad-submissions/:id/approve — Approve submission
+  const adminAdSubApprove = path?.match(/^\/api\/admin\/ad-submissions\/([a-f0-9-]+)\/approve$/);
+  if (adminAdSubApprove && method === "POST") {
+    const subId = adminAdSubApprove[1];
+
+    const { data: submission } = await supabase
+      .from("ad_submissions")
+      .select("id, campaign_id, user_id, status, reward_amount, reward_token")
+      .eq("id", subId)
+      .single();
+
+    if (!submission) return json(res, 404, { error: "Submission not found" });
+    if (submission.status !== "pending") return json(res, 400, { error: "Submission is not pending" });
+
+    // Update submission status
+    await supabase
+      .from("ad_submissions")
+      .update({ status: "approved", reviewed_at: new Date().toISOString() })
+      .eq("id", subId);
+
+    // Increment campaign completions_count and budget_spent
+    const { data: campaign } = await supabase
+      .from("ad_campaigns")
+      .select("completions_count, budget_spent, budget")
+      .eq("id", submission.campaign_id)
+      .single();
+
+    if (campaign) {
+      const newCompletions = (campaign.completions_count || 0) + 1;
+      const rewardAmount = submission.reward_amount || 0;
+      const newBudgetSpent = (campaign.budget_spent || 0) + rewardAmount;
+
+      const updateData: any = {
+        completions_count: newCompletions,
+        budget_spent: newBudgetSpent,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Auto-pause if budget exhausted
+      if (newBudgetSpent >= campaign.budget) {
+        updateData.status = "paused";
+      }
+
+      await supabase.from("ad_campaigns").update(updateData).eq("id", submission.campaign_id);
+    }
+
+    // Credit reward to task doer
+    const rewardToken = submission.reward_token || "GRAM";
+    const rewardAmount = submission.reward_amount || 0;
+    if (rewardAmount > 0) {
+      const { data: doerUser } = await supabase
+        .from("users")
+        .select("gram, balance")
+        .eq("id", submission.user_id)
+        .single();
+
+      if (doerUser) {
+        if (rewardToken === "GRAM") {
+          await supabase.from("users").update({ gram: (doerUser.gram || 0) + rewardAmount }).eq("id", submission.user_id);
+        } else {
+          await supabase.from("users").update({ balance: (doerUser.balance || 0) + rewardAmount }).eq("id", submission.user_id);
+        }
+
+        await supabase.from("transactions").insert({
+          user_id: submission.user_id,
+          type: "ad_task_reward",
+          amount: rewardAmount,
+          token: rewardToken,
+          description: "Ad task completed",
+        });
+      }
+    }
+
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // POST /api/admin/ad-submissions/:id/reject — Reject submission
+  const adminAdSubReject = path?.match(/^\/api\/admin\/ad-submissions\/([a-f0-9-]+)\/reject$/);
+  if (adminAdSubReject && method === "POST") {
+    const subId = adminAdSubReject[1];
+    const body = await readBody(req);
+    const { reason } = body;
+
+    const { data: submission } = await supabase
+      .from("ad_submissions")
+      .select("id, status")
+      .eq("id", subId)
+      .single();
+
+    if (!submission) return json(res, 404, { error: "Submission not found" });
+    if (submission.status !== "pending") return json(res, 400, { error: "Submission is not pending" });
+
+    await supabase
+      .from("ad_submissions")
+      .update({
+        status: "rejected",
+        admin_note: reason || null,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", subId);
+
+    json(res, 200, { success: true });
     return true;
   }
 
