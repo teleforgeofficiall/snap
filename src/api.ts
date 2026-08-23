@@ -306,6 +306,14 @@ export async function handleApi(
   }
 
   // ============ TASK ROUTES ============
+  // GET /api/task-defaults — Public: Get default messages for task types
+  if (path === "/api/task-defaults" && method === "GET") {
+    const { data, error } = await supabase.from("task_defaults").select("*").eq("id", "default").single();
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, { defaults: data });
+    return true;
+  }
+
   if (path === "/api/tasks" && method === "GET") {
     const [tasksRes, completionsRes, submissionsRes] = await Promise.all([
       supabase.from("tasks").select("id, title, instructions, task_type, task_url, channel_username, bot_username, bot_link, reward_amount, reward_token, task_logo_url, reference_image_url, required_screenshots, is_active, created_at").eq("is_active", true).order("created_at", { ascending: false }),
@@ -2656,6 +2664,38 @@ async function handleAdminApi(
     // Also support legacy single setting
     if (body.price_per_1k !== undefined) await setSetting(supabase, "ad_price_per_1k", String(body.price_per_1k));
 
+    json(res, 200, { success: true });
+    return true;
+  }
+
+  // GET /api/admin/task-defaults — Get default messages for all task types
+  if (path === "/api/admin/task-defaults" && method === "GET") {
+    const { data, error } = await supabase.from("task_defaults").select("*").eq("id", "default").single();
+    if (error) return json(res, 500, { error: error.message });
+    json(res, 200, { defaults: data });
+    return true;
+  }
+
+  // PUT /api/admin/task-defaults — Update default messages
+  if (path === "/api/admin/task-defaults" && method === "PUT") {
+    const updates: any = { updated_at: new Date().toISOString() };
+    const fields = [
+      'channel_join_title','channel_join_instructions','channel_join_logo',
+      'bot_start_title','bot_start_instructions','bot_start_logo',
+      'x_follow_title','x_follow_instructions','x_follow_logo',
+      'x_like_title','x_like_instructions','x_like_logo',
+      'x_retweet_title','x_retweet_instructions','x_retweet_logo',
+      'x_comment_title','x_comment_instructions','x_comment_logo',
+      'ig_follow_title','ig_follow_instructions','ig_follow_logo',
+      'ig_like_title','ig_like_instructions','ig_like_logo',
+      'ig_comment_title','ig_comment_instructions','ig_comment_logo',
+      'ig_repost_title','ig_repost_instructions','ig_repost_logo',
+      'dc_join_title','dc_join_instructions','dc_join_logo',
+      'custom_title','custom_instructions','custom_logo',
+    ];
+    fields.forEach(f => { if (body[f] !== undefined) updates[f] = body[f]; });
+    const { error } = await supabase.from("task_defaults").update(updates).eq("id", "default");
+    if (error) return json(res, 400, { error: error.message });
     json(res, 200, { success: true });
     return true;
   }
