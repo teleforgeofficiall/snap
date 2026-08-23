@@ -1501,9 +1501,16 @@ export async function handleApi(
       "telegram_channel_join",
       "telegram_bot_start",
       "x_follow",
+      "x_like",
       "x_retweet",
-      "x_post_like",
-      "website_visit",
+      "x_comment",
+      "ig_follow",
+      "ig_like_reel",
+      "ig_comment_reel",
+      "ig_repost_reel",
+      "dc_join",
+      "custom_task",
+      "run_campaign",
     ];
 
     const rates: Record<string, { price: number; reach: number }> = {};
@@ -1511,8 +1518,8 @@ export async function handleApi(
       const priceStr = await getSetting(supabase, `ad_rate_${sub}`);
       const reachStr = await getSetting(supabase, `reach_${sub}`);
       rates[sub] = {
-        price: parseFloat(priceStr || "50"),
-        reach: parseInt(reachStr || "200"),
+        price: parseFloat(priceStr || "0"),
+        reach: parseInt(reachStr || "0"),
       };
     }
 
@@ -1524,7 +1531,7 @@ export async function handleApi(
   if (path === "/api/advertise/campaigns" && method === "GET") {
     const { data: campaigns } = await supabase
       .from("ad_campaigns")
-      .select("id, category, subcategory, title, description, target_url, target_username, budget, budget_spent, completions_count, status, reject_reason, created_at")
+      .select("id, category, subcategory, title, description, target_url, target_username, budget, budget_spent, completions_count, estimated_reach, status, reject_reason, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -1546,6 +1553,13 @@ export async function handleApi(
     if ((user.gram || 0) < budget) {
       return json(res, 400, { error: "Insufficient Gram balance" });
     }
+
+    // Calculate estimated reach: (budget * reach_per_price) / price_per_1k
+    const priceStr = await getSetting(supabase, `ad_rate_${subcategory}`);
+    const reachStr = await getSetting(supabase, `reach_${subcategory}`);
+    const pricePer1k = parseFloat(priceStr || "0");
+    const reachPerPrice = parseInt(reachStr || "0");
+    const estimatedReach = pricePer1k > 0 ? Math.floor((budget * reachPerPrice) / pricePer1k) : 0;
 
     // Lock budget: deduct from user's gram
     const newGram = (user.gram || 0) - budget;
@@ -1573,6 +1587,7 @@ export async function handleApi(
         budget,
         budget_spent: 0,
         completions_count: 0,
+        estimated_reach: estimatedReach,
         status: "draft",
       })
       .select()
@@ -1593,7 +1608,7 @@ export async function handleApi(
       .eq("type", "lock")
       .eq("amount", -budget);
 
-    json(res, 200, { campaign });
+    json(res, 200, { campaign, estimated_reach: estimatedReach });
     return true;
   }
 
@@ -2583,9 +2598,16 @@ async function handleAdminApi(
       "telegram_channel_join",
       "telegram_bot_start",
       "x_follow",
+      "x_like",
       "x_retweet",
-      "x_post_like",
-      "website_visit",
+      "x_comment",
+      "ig_follow",
+      "ig_like_reel",
+      "ig_comment_reel",
+      "ig_repost_reel",
+      "dc_join",
+      "custom_task",
+      "run_campaign",
     ];
 
     const settings: Record<string, { price: number; reach: number }> = {};
@@ -2593,8 +2615,8 @@ async function handleAdminApi(
       const priceStr = await getSetting(supabase, `ad_rate_${sub}`);
       const reachStr = await getSetting(supabase, `reach_${sub}`);
       settings[sub] = {
-        price: parseFloat(priceStr || "50"),
-        reach: parseInt(reachStr || "200"),
+        price: parseFloat(priceStr || "0"),
+        reach: parseInt(reachStr || "0"),
       };
     }
 
@@ -2610,9 +2632,16 @@ async function handleAdminApi(
       "telegram_channel_join",
       "telegram_bot_start",
       "x_follow",
+      "x_like",
       "x_retweet",
-      "x_post_like",
-      "website_visit",
+      "x_comment",
+      "ig_follow",
+      "ig_like_reel",
+      "ig_comment_reel",
+      "ig_repost_reel",
+      "dc_join",
+      "custom_task",
+      "run_campaign",
     ];
 
     for (const sub of subcategories) {
