@@ -9,6 +9,11 @@ export function verifyTelegramInit(initData: string, botToken: string): any {
     const hash = data.get("hash");
     data.delete("hash");
 
+    if (!hash) {
+      console.log("[AUTH] No hash in initData, keys:", Array.from(data.keys()));
+      return null;
+    }
+
     const dataCheckString = Array.from(data.entries())
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}=${v}`)
@@ -25,6 +30,7 @@ export function verifyTelegramInit(initData: string, botToken: string): any {
       .digest("hex");
 
     if (calculatedHash !== hash) {
+      console.log("[AUTH] Hash mismatch. Expected:", calculatedHash.slice(0, 12) + "...", "Got:", hash.slice(0, 12) + "...", "DataCheckString length:", dataCheckString.length);
       return null;
     }
 
@@ -32,8 +38,10 @@ export function verifyTelegramInit(initData: string, botToken: string): any {
     if (userStr) {
       return JSON.parse(userStr);
     }
+    console.log("[AUTH] No user field in initData");
     return null;
-  } catch {
+  } catch (e: any) {
+    console.log("[AUTH] verifyTelegramInit error:", e?.message);
     return null;
   }
 }
@@ -46,18 +54,45 @@ export async function getUserFromInitData(
 ) {
   const tgUser = verifyTelegramInit(initData, botToken);
   if (!tgUser || !tgUser.id) {
-    console.log("[AUTH] Hash verification failed for initData");
     return null;
   }
 
-  const { data: user, error } = await supabase
+  console.log("[AUTH] Verified user:", tgUser.id, tgUser.first_name);
+
+  let { data: user, error } = await supabase
     .from("users")
     .select("id, telegram_id, first_name, username, balance, gram, referral_code, referred_by, referral_count, daily_claim_date, is_admin, eligible, created_at")
     .eq("telegram_id", tgUser.id)
     .single();
 
+  // Fallback: if JS client returns null but no error, try REST API directly
+  if (!user && !error) {
+    console.log("[AUTH] JS client returned null, trying REST API fallback");
+    try {
+      const restUrl = `${process.env.SUPABASE_URL}/rest/v1/users?telegram_id=eq.${tgUser.id}&select=id,telegram_id,first_name,username,balance,gram,referral_code,referred_by,referral_count,daily_claim_date,is_admin,eligible,created_at`;
+      const restRes = await fetch(restUrl, {
+        headers: {
+          "apikey": process.env.SUPABASE_KEY || "",
+          "Authorization": `Bearer ${process.env.SUPABASE_KEY || ""}`,
+        },
+      });
+      if (restRes.ok) {
+        const rows = await restRes.json();
+        if (rows && rows.length > 0) {
+          user = rows[0];
+          console.log("[AUTH] REST fallback found user:", user.telegram_id);
+        }
+      }
+    } catch (restErr: any) {
+      console.log("[AUTH] REST fallback error:", restErr?.message);
+    }
+  }
+
+  if (error) {
+    console.log("[AUTH] Supabase query error:", error.message, "code:", error.code);
+  }
+
   if (user) {
-    // Pass Telegram user data for client display
     user.photo_url = tgUser.photo_url || null;
     if (!user.first_name && tgUser.first_name) user.first_name = tgUser.first_name;
     if (!user.username && tgUser.username) user.username = tgUser.username;
@@ -76,6 +111,31 @@ export async function getUserFromInitData(
 
   if (insertErr) {
     console.log("[AUTH] Auto-create failed:", insertErr.message);
+    // If duplicate key, the user exists but we can't find them — try REST fallback one more time
+    if (insertErr.code === "23505") {
+      try {
+        const restUrl = `${process.env.SUPABASE_URL}/rest/v1/users?telegram_id=eq.${tgUser.id}&select=id,telegram_id,first_name,username,balance,gram,referral_code,referred_by,referral_count,daily_claim_date,is_admin,eligible,created_at`;
+        const restRes = await fetch(restUrl, {
+          headers: {
+            "apikey": process.env.SUPABASE_KEY || "",
+            "Authorization": `Bearer ${process.env.SUPABASE_KEY || ""}`,
+          },
+        });
+        if (restRes.ok) {
+          const rows = await restRes.json();
+          if (rows && rows.length > 0) {
+            const foundUser = rows[0];
+            console.log("[AUTH] Found via REST after duplicate key:", foundUser.telegram_id);
+            foundUser.photo_url = tgUser.photo_url || null;
+            if (!foundUser.first_name && tgUser.first_name) foundUser.first_name = tgUser.first_name;
+            if (!foundUser.username && tgUser.username) foundUser.username = tgUser.username;
+            return foundUser;
+          }
+        }
+      } catch (e: any) {
+        console.log("[AUTH] Final REST fallback error:", e?.message);
+      }
+    }
     return null;
   }
 
@@ -106,14 +166,10 @@ export async function handleApi(
   const path = url.pathname;
   const method = req.method;
 
-  // CORS headers — restrict to allowed origins
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean);
-  const origin = req.headers.origin || "";
-  if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin || "*");
-  }
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  // CORS headers — allow all origins (proxy handles origin validation)
+  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
 
   if (method === "OPTIONS") {
     res.writeHead(200);
@@ -124,6 +180,7 @@ export async function handleApi(
   // Auth middleware - get user from initData
   const authHeader = req.headers.authorization;
   const initData = authHeader?.replace("Bearer ", "") || "";
+  console.log("[API]", method, path, "authLen:", initData.length, "origin:", req.headers.origin || "none");
 
   // Public routes (no auth needed)
   if (path === "/api/health") {
