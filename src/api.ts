@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { creditReferrerCommission, getSetting, setSetting } from "./utils";
+import { creditReferrerCommission, generateReferralCode, getSetting, setSetting } from "./utils";
 
 // Verify Telegram WebApp initData
 export function verifyTelegramInit(initData: string, botToken: string): any {
@@ -46,6 +46,7 @@ export async function getUserFromInitData(
 ) {
   const tgUser = verifyTelegramInit(initData, botToken);
   if (!tgUser || !tgUser.id) {
+    console.log("[AUTH] Hash verification failed for initData");
     return null;
   }
 
@@ -55,12 +56,43 @@ export async function getUserFromInitData(
     .eq("telegram_id", tgUser.id)
     .single();
 
-  if (error || !user) return null;
-  // Pass Telegram user data for client display
-  user.photo_url = tgUser.photo_url || null;
-  if (!user.first_name && tgUser.first_name) user.first_name = tgUser.first_name;
-  if (!user.username && tgUser.username) user.username = tgUser.username;
-  return user;
+  if (user) {
+    // Pass Telegram user data for client display
+    user.photo_url = tgUser.photo_url || null;
+    if (!user.first_name && tgUser.first_name) user.first_name = tgUser.first_name;
+    if (!user.username && tgUser.username) user.username = tgUser.username;
+    return user;
+  }
+
+  // Auto-create user if not found (user opened Mini App without /start)
+  console.log("[AUTH] User not found, auto-creating for telegram_id:", tgUser.id);
+  const myRefCode = generateReferralCode(tgUser.id);
+  const { error: insertErr } = await supabase.from("users").insert({
+    telegram_id: tgUser.id,
+    first_name: tgUser.first_name || null,
+    username: tgUser.username || null,
+    referral_code: myRefCode,
+  });
+
+  if (insertErr) {
+    console.log("[AUTH] Auto-create failed:", insertErr.message);
+    return null;
+  }
+
+  // Re-fetch the newly created user
+  const { data: newUser } = await supabase
+    .from("users")
+    .select("id, telegram_id, first_name, username, balance, gram, referral_code, referred_by, referral_count, daily_claim_date, is_admin, eligible, created_at")
+    .eq("telegram_id", tgUser.id)
+    .single();
+
+  if (newUser) {
+    console.log("[AUTH] Auto-created user:", tgUser.id);
+    newUser.photo_url = tgUser.photo_url || null;
+    return newUser;
+  }
+
+  return null;
 }
 
 // Handle API routes
