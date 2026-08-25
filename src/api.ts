@@ -3144,6 +3144,138 @@ async function handleAdminApi(
     return true;
   }
 
+  // ==================== DEPOSIT ENDPOINTS ====================
+
+  // GET /api/deposit/address — Get deposit address and min deposit
+  if (path === "/api/deposit/address" && method === "GET") {
+    const depositAddress = await getSetting(supabase, "deposit_address") || "";
+    const minDeposit = parseFloat(await getSetting(supabase, "min_deposit") || "1");
+    json(res, 200, { address: depositAddress, min_deposit: minDeposit });
+    return true;
+  }
+
+  // POST /api/deposit — Create deposit request
+  if (path === "/api/deposit" && method === "POST") {
+    const body = await readBody(req);
+    const { amount, sender_wallet } = body;
+
+    if (!amount || !sender_wallet) {
+      return json(res, 400, { error: "Amount and sender wallet address required" });
+    }
+
+    const minDeposit = parseFloat(await getSetting(supabase, "min_deposit") || "1");
+    if (amount < minDeposit) {
+      return json(res, 400, { error: `Minimum deposit is ${minDeposit} GRAM` });
+    }
+
+    // Check for duplicate submission (same user, same sender, within 5 minutes)
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: existing } = await supabase
+      .from("deposit_requests")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("sender_wallet", sender_wallet)
+      .gte("created_at", fiveMinAgo)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return json(res, 400, { error: "Duplicate request. Please wait before submitting again." });
+    }
+
+    const { error } = await supabase.from("deposit_requests").insert({
+      user_id: user.id,
+      amount: parseFloat(amount),
+      sender_wallet: sender_wallet.trim(),
+      status: "pending",
+    });
+
+    if (error) return json(res, 500, { error: error.message });
+
+    json(res, 200, { success: true, message: "Deposit request submitted. Waiting for admin approval." });
+    return true;
+  }
+
+  // GET /api/deposit/history — Get user's deposit history
+  if (path === "/api/deposit/history" && method === "GET") {
+    const { data: deposits } = await supabase
+      .from("deposit_requests")
+      .select("id, amount, sender_wallet, status, admin_note, created_at, reviewed_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    json(res, 200, { deposits: deposits || [] });
+    return true;
+  }
+
+  // GET /api/admin/deposits — Get all deposit requests (admin)
+  if (path === "/api/admin/deposits" && method === "GET") {
+    const { data: deposits } = await supabase
+      .from("deposit_requests")
+      .select("id, amount, sender_wallet, status, admin_note, created_at, reviewed_at, user_id, users(telegram_id, first_name, username)")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    json(res, 200, { deposits: deposits || [] });
+    return true;
+  }
+
+  // POST /api/admin/deposits/:id/review — Accept/reject deposit
+  const depositReviewMatch = path?.match(/^\/api\/admin\/deposits\/([a-f0-9-]+)\/review$/);
+  if (depositReviewMatch && method === "POST") {
+    const depositId = depositReviewMatch[1];
+    const { action, admin_note } = body;
+
+    if (!["approved", "rejected"].includes(action)) {
+      return json(res, 400, { error: "Invalid action" });
+    }
+
+    const { data: deposit, error: fetchErr } = await supabase
+      .from("deposit_requests")
+      .select("*, users(id, gram, telegram_id, first_name)")
+      .eq("id", depositId)
+      .single();
+
+    if (!deposit || fetchErr) return json(res, 404, { error: "Deposit not found" });
+    if (deposit.status !== "pending") return json(res, 400, { error: "Deposit already reviewed" });
+
+    if (action === "approved") {
+      // Credit GRAM to user
+      const currentGram = deposit.users?.gram || 0;
+      const newGram = currentGram + deposit.amount;
+      await supabase.from("users").update({ gram: newGram }).eq("id", deposit.user_id);
+    }
+
+    await supabase
+      .from("deposit_requests")
+      .update({
+        status: action === "approved" ? "completed" : "rejected",
+        admin_note: admin_note || null,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", depositId);
+
+    json(res, 200, { success: true, message: action === "approved" ? "Deposit approved and GRAM credited" : "Deposit rejected" });
+    return true;
+  }
+
+  // GET /api/admin/deposit-settings — Get deposit settings (admin)
+  if (path === "/api/admin/deposit-settings" && method === "GET") {
+    const depositAddress = await getSetting(supabase, "deposit_address") || "";
+    const minDeposit = parseFloat(await getSetting(supabase, "min_deposit") || "1");
+    json(res, 200, { deposit_address: depositAddress, min_deposit: minDeposit });
+    return true;
+  }
+
+  // PUT /api/admin/deposit-settings — Update deposit settings (admin)
+  if (path === "/api/admin/deposit-settings" && method === "PUT") {
+    const { deposit_address, min_deposit } = body;
+    if (deposit_address !== undefined) await setSetting(supabase, "deposit_address", deposit_address);
+    if (min_deposit !== undefined) await setSetting(supabase, "min_deposit", String(min_deposit));
+    json(res, 200, { success: true });
+    return true;
+  }
+
   json(res, 404, { error: "Not found" });
   return true;
 }
