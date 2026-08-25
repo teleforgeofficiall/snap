@@ -1978,6 +1978,70 @@ export async function handleApi(
     return true;
   }
 
+  // ==================== DEPOSIT ENDPOINTS ====================
+
+  // GET /api/deposit/address — Get deposit address and min deposit
+  if (path === "/api/deposit/address" && method === "GET") {
+    const depositAddress = await getSetting(supabase, "deposit_address") || "";
+    const minDeposit = parseFloat(await getSetting(supabase, "min_deposit") || "1");
+    json(res, 200, { address: depositAddress, min_deposit: minDeposit });
+    return true;
+  }
+
+  // POST /api/deposit — Create deposit request
+  if (path === "/api/deposit" && method === "POST") {
+    const body = await readBody(req);
+    const { amount, sender_wallet } = body;
+
+    if (!amount || !sender_wallet) {
+      return json(res, 400, { error: "Amount and sender wallet address required" });
+    }
+
+    const minDeposit = parseFloat(await getSetting(supabase, "min_deposit") || "1");
+    if (amount < minDeposit) {
+      return json(res, 400, { error: `Minimum deposit is ${minDeposit} GRAM` });
+    }
+
+    // Check for duplicate submission (same user, same sender, within 5 minutes)
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: existing } = await supabase
+      .from("deposit_requests")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("sender_wallet", sender_wallet)
+      .gte("created_at", fiveMinAgo)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      return json(res, 400, { error: "Duplicate request. Please wait before submitting again." });
+    }
+
+    const { error } = await supabase.from("deposit_requests").insert({
+      user_id: user.id,
+      amount: parseFloat(amount),
+      sender_wallet: sender_wallet.trim(),
+      status: "pending",
+    });
+
+    if (error) return json(res, 500, { error: error.message });
+
+    json(res, 200, { success: true, message: "Deposit request submitted. Waiting for admin approval." });
+    return true;
+  }
+
+  // GET /api/deposit/history — Get user's deposit history
+  if (path === "/api/deposit/history" && method === "GET") {
+    const { data: deposits } = await supabase
+      .from("deposit_requests")
+      .select("id, amount, sender_wallet, status, admin_note, created_at, reviewed_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    json(res, 200, { deposits: deposits || [] });
+    return true;
+  }
+
   // 404
   json(res, 404, { error: "Not found" });
   return true;
@@ -3141,70 +3205,6 @@ async function handleAdminApi(
       .eq("id", subId);
 
     json(res, 200, { success: true });
-    return true;
-  }
-
-  // ==================== DEPOSIT ENDPOINTS ====================
-
-  // GET /api/deposit/address — Get deposit address and min deposit
-  if (path === "/api/deposit/address" && method === "GET") {
-    const depositAddress = await getSetting(supabase, "deposit_address") || "";
-    const minDeposit = parseFloat(await getSetting(supabase, "min_deposit") || "1");
-    json(res, 200, { address: depositAddress, min_deposit: minDeposit });
-    return true;
-  }
-
-  // POST /api/deposit — Create deposit request
-  if (path === "/api/deposit" && method === "POST") {
-    const body = await readBody(req);
-    const { amount, sender_wallet } = body;
-
-    if (!amount || !sender_wallet) {
-      return json(res, 400, { error: "Amount and sender wallet address required" });
-    }
-
-    const minDeposit = parseFloat(await getSetting(supabase, "min_deposit") || "1");
-    if (amount < minDeposit) {
-      return json(res, 400, { error: `Minimum deposit is ${minDeposit} GRAM` });
-    }
-
-    // Check for duplicate submission (same user, same sender, within 5 minutes)
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { data: existing } = await supabase
-      .from("deposit_requests")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("sender_wallet", sender_wallet)
-      .gte("created_at", fiveMinAgo)
-      .limit(1);
-
-    if (existing && existing.length > 0) {
-      return json(res, 400, { error: "Duplicate request. Please wait before submitting again." });
-    }
-
-    const { error } = await supabase.from("deposit_requests").insert({
-      user_id: user.id,
-      amount: parseFloat(amount),
-      sender_wallet: sender_wallet.trim(),
-      status: "pending",
-    });
-
-    if (error) return json(res, 500, { error: error.message });
-
-    json(res, 200, { success: true, message: "Deposit request submitted. Waiting for admin approval." });
-    return true;
-  }
-
-  // GET /api/deposit/history — Get user's deposit history
-  if (path === "/api/deposit/history" && method === "GET") {
-    const { data: deposits } = await supabase
-      .from("deposit_requests")
-      .select("id, amount, sender_wallet, status, admin_note, created_at, reviewed_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    json(res, 200, { deposits: deposits || [] });
     return true;
   }
 
