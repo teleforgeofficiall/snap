@@ -1740,8 +1740,8 @@ export async function handleApi(
 
     if (!campaign) return json(res, 404, { error: "Campaign not found" });
     if (campaign.user_id !== user.id) return json(res, 403, { error: "Not your campaign" });
-    if (!["draft", "rejected"].includes(campaign.status)) {
-      return json(res, 400, { error: "Can only edit draft or rejected campaigns" });
+    if (!["draft", "rejected", "under_review"].includes(campaign.status)) {
+      return json(res, 400, { error: "Can only edit draft, under review, or rejected campaigns" });
     }
 
     const updateData: any = { updated_at: new Date().toISOString() };
